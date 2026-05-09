@@ -1,0 +1,241 @@
+{
+    "2026-05-02": {
+        "completed_tickets": 23,
+        "cancelled_tickets": 18,
+        "total_points_given": 1118,
+        "helpers": {
+            "582945457865621513": 210,
+            "876050868481450024": 90,
+            "696052252863102996": 117,
+            "807522061546160168": 103,
+            "293619479559143425": 74,
+            "701396896366985238": 11,
+            "380322705599102987": 58,
+            "950808185571250236": 102
+        },
+        "requesters": {
+            "582945457865621513": 7,
+            "668301019964375040": 12,
+            "876050868481450024": 77,
+            "696052252863102996": 123,
+            "807522061546160168": 109,
+            "380322705599102987": 3,
+            "950808185571250236": 8,
+            "293619479559143425": 14
+        },
+        "activities": {
+            "UltraDarkon": 3,
+            "UltraNulgath + UltraDrago + UltraDarkon + ChampionDrakath": 1,
+            "ChampionDrakath + UltraDarkon + UltraDrago + UltraNulgath + UltraSpeaker + UltraGramiel + UltraDage": 1,
+            "VoidFlibbi + VoidNightbane + VoidXyfrag": 1,
+            "UltraSpeaker": 3,
+            "UltraSpeaker + UltraGramiel + ChampionDrakath + UltraDarkon + UltraDage + UltraDrago": 1,
+            "UltraSpeaker + UltraGramiel + ChampionDrakath + UltraDage + UltraDarkon + UltraDrago + UltraNulgath": 3,
+            "Hard Farm/Others": 12,
+            "VoidXyfrag + VoidNightbane": 1,
+            "UltraEngineer + UltraEzrajal + UltraWarden + UltraTyndarius": 1,
+            "GrimChallenge": 1,
+            "TempleShrine Left": 1,
+            "UltraDage": 1,
+            "VoidXyfrag": 1,
+            "VoidNightbane + VoidXyfrag": 2,
+            "VoidFlibbi": 1,
+            "ChampionDrakath": 1,
+            "ApexAzalith": 1,
+            "UltraSpeaker + UltraGramiel + ChampionDrakath + UltraDarkon + UltraDage + UltraDrago + UltraNulgath": 2,
+            "UltraGramiel": 1,
+            "UltraSpeaker + UltraGramiel": 2
+        }
+    },
+    "2026-05-03": {
+        "completed_tickets": 10,
+        "cancelled_tickets": 3,
+        "total_points_given": 420,
+        "helpers": {
+            "582945457865621513": 56,
+            "380322705599102987": 34,
+            "696052252863102996": 30,
+            "807522061546160168": 77,
+            "876050868481450024": 15,
+            "435127458581315584": 20,
+            "950808185571250236": 54,
+            "293619479559143425": 32
+        },
+        "requesters": {
+            "342386355084722178": 0,
+            "807522061546160168": 19,
+            "582945457865621513": 3,
+            "696052252863102996": 6,
+            "668301019964375040": 34,
+            "876050868481450024": 0,
+            "950808185571250236": 6,
+            "620690959797321736": 32,
+            "293619479559143425": 2
+        },
+        "activities": {
+            "Hard Farm/Others": 1,
+            "UltraEngineer + UltraEzrajal + UltraTyndarius + UltraWarden + UltraDage": 1,
+            "Deimos + Frozenlair + Sevencircleswar": 1,
+            "KathoolDepths + VoidFlibbi": 1,
+            "TempleShrine Left + TempleShrine Right + TempleShrine Mid": 1,
+            "VoidFlibbi + VoidNightbane + VoidXyfrag": 1,
+            "UltraEngineer + UltraEzrajal + UltraTyndarius + UltraWarden": 1,
+            "UltraSpeaker": 1,
+            "UltraEngineer + UltraEzrajal + UltraWarden": 1,
+            "UltraNulgath + UltraDarkon + ChampionDrakath + UltraDrago": 1,
+            "UltraDarkon": 1,
+            "UltraGramiel + ChampionDrakath + UltraDage + UltraDarkon + UltraDrago + UltraNulgath": 1,
+            "UltraDage": 1
+        }
+    },
+    "2026-05-04": {
+        "completed_tickets": 9,
+        "cancelled_tickets": 2,
+        "total_points_given": 695,
+        "helpers": {
+            "293619479559143425": 177,
+            "696052252863102996": 191,
+            "807522061546160168": 69,
+            "582945457865621513": 27,
+            "380322705599102987": 20,
+            "950808185571250236": 5
+        },
+        "requesters": {
+            "950808185571250236": 132,
+            "696052252863102996": 10,
+            "380322705599102987": 34,
+            "668301019964375040": 6,
+            "293619479559143425": 7,
+            "634064280001576970": 5,
+            "807522061546160168": 5,
+            "876673694179688448": 0,
+            "1268595767082483832": 0,
+            "876050868481450024": 7
+        },
+        "activities": {
+            "Hard Farm/Others": 4,
+            "UltraDage + UltraWarden + UltraTyndarius + UltraEzrajal + UltraEngineer": 1,
+            "UltraSpeaker + UltraGramiel + ChampionDrakath + UltraDarkon + UltraDrago + UltraNulgath": 1,
+            "VoidFlibbi + VoidNightbane + VoidXyfrag": 1,
+            "UltraDage": 2,
+            "UltraSpeaker": 2
+        }
+    },
+    "2026-05-05": {
+        "completed_tickets": 3,
+        "cancelled_tickets": 4,
+        "total_points_given": 245,
+        "helpers": {
+            "696052252863102996": 61,
+            "807522061546160168": 56,
+            "293619479559143425": 55,
+            "1268595767082483832": 6,
+            "435127458581315584": 6
+        },
+        "requesters": {
+            "717543838541021304": 0,
+            "950808185571250236": 50,
+            "582945457865621513": 0,
+            "696052252863102996": 0,
+            "807522061546160168": 5,
+            "620690959797321736": 6
+        },
+        "activities": {
+            "UltraDage + ChampionDrakath": 1,
+            "Hard Farm/Others": 1,
+            "GrimChallenge": 1,
+            "TempleShrine Mid": 1,
+            "UltraDage": 2,
+            "VoidFlibbi + VoidNightbane + VoidXyfrag": 1
+        }
+    },
+    "2026-05-06": {
+        "completed_tickets": 5,
+        "cancelled_tickets": 4,
+        "total_points_given": 131,
+        "helpers": {
+            "1268595767082483832": 5,
+            "807522061546160168": 23,
+            "435127458581315584": 29,
+            "696052252863102996": 5,
+            "293619479559143425": 21,
+            "380322705599102987": 14
+        },
+        "requesters": {
+            "696052252863102996": 5,
+            "950808185571250236": 5,
+            "380322705599102987": 10,
+            "807522061546160168": 6,
+            "293619479559143425": 8
+        },
+        "activities": {
+            "TempleShrine Mid": 1,
+            "Hard Farm/Others": 3,
+            "VoidFlibbi": 1,
+            "TempleShrine Right": 1,
+            "TempleShrine Right + TempleShrine Left + TempleShrine Mid": 2,
+            "UltraEngineer + UltraEzrajal + UltraTyndarius + UltraWarden + UltraDage": 1
+        }
+    },
+    "2026-05-07": {
+        "completed_tickets": 7,
+        "cancelled_tickets": 0,
+        "total_points_given": 256,
+        "helpers": {
+            "807522061546160168": 64,
+            "380322705599102987": 23,
+            "293619479559143425": 24,
+            "435127458581315584": 35,
+            "696052252863102996": 46
+        },
+        "requesters": {
+            "696052252863102996": 6,
+            "293619479559143425": 40,
+            "380322705599102987": 6,
+            "668301019964375040": 12
+        },
+        "activities": {
+            "Hard Farm/Others": 3,
+            "TempleShrine Mid": 1,
+            "VoidFlibbi + VoidNightbane + VoidXyfrag": 1,
+            "UltraEngineer + UltraEzrajal + UltraTyndarius + UltraWarden": 1,
+            "VoidFlibbi + VoidNightbane": 1
+        }
+    },
+    "2026-05-08": {
+        "completed_tickets": 1,
+        "cancelled_tickets": 2,
+        "total_points_given": 30,
+        "helpers": {
+            "696052252863102996": 15
+        },
+        "requesters": {
+            "876050868481450024": 15
+        },
+        "activities": {
+            "ChampionDrakath + UltraDage + UltraDarkon + UltraDrago + UltraNulgath": 1,
+            "UltraSpeaker + UltraGramiel + ChampionDrakath + UltraDarkon": 2
+        }
+    },
+    "2026-05-09": {
+        "completed_tickets": 2,
+        "cancelled_tickets": 1,
+        "total_points_given": 180,
+        "helpers": {
+            "696052252863102996": 6,
+            "807522061546160168": 45,
+            "582945457865621513": 45,
+            "380322705599102987": 39
+        },
+        "requesters": {
+            "876050868481450024": 0,
+            "380322705599102987": 6,
+            "293619479559143425": 39
+        },
+        "activities": {
+            "ChampionDrakath + UltraDarkon + UltraGramiel + UltraSpeaker": 1,
+            "VoidFlibbi + VoidNightbane + VoidXyfrag": 1,
+            "UltraSpeaker + UltraGramiel + ChampionDrakath + UltraDage + UltraDarkon + UltraDrago + UltraNulgath": 1
+        }
+    }
+}
