@@ -1,14 +1,16 @@
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
+import re
 
 from playwright.async_api import async_playwright
 
 
 SETTINGS_FILE = "data/boost_settings.json"
+CACHE_MINUTES = 60
 
 
 class Boosts(commands.Cog):
@@ -16,17 +18,24 @@ class Boosts(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.settings = self.load_settings()
+
+        # Cache for /boost_today
+        self.cached_active_events = None
+        self.active_cache_timestamp = None
+
+        # Cache for /boost_week
+        self.cached_week_events = None
+        self.week_cache_timestamp = None
+
         self.daily_boost_reminder.start()
 
     def cog_unload(self):
         self.daily_boost_reminder.cancel()
 
     def load_settings(self):
-
         os.makedirs("data", exist_ok=True)
 
         if not os.path.exists(SETTINGS_FILE):
-
             with open(SETTINGS_FILE, "w") as file:
                 json.dump({}, file, indent=4)
 
@@ -34,83 +43,269 @@ class Boosts(commands.Cog):
             return json.load(file)
 
     def save_settings(self):
-
         os.makedirs("data", exist_ok=True)
 
         with open(SETTINGS_FILE, "w") as file:
             json.dump(self.settings, file, indent=4)
 
-    async def fetch_artix_calendar_events(self):
+    def cache_is_valid(self, timestamp):
+        if timestamp is None:
+            return False
 
-        try:
+        return datetime.now() - timestamp < timedelta(minutes=CACHE_MINUTES)
 
-            async with async_playwright() as p:
+    async def fetch_artix_body_text(self):
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
 
-                browser = await p.chromium.launch(
-                    headless=True
+            await page.goto(
+                "https://www.artix.com/calendar/",
+                wait_until="networkidle",
+                timeout=60000
+            )
+
+            await page.wait_for_timeout(2000)
+
+            body_text = await page.locator("body").inner_text()
+
+            await browser.close()
+
+            return body_text
+
+    async def scrape_active_events(self):
+
+        today = datetime.now().replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+
+        active_events = []
+
+        date_pattern = r"(\d{1,2})\.(\d{1,2})\.(\d{2})"
+
+        async with async_playwright() as p:
+
+            browser = await p.chromium.launch(headless=True)
+
+            page = await browser.new_page()
+
+            await page.goto(
+                "https://www.artix.com/calendar/",
+                wait_until="networkidle",
+                timeout=60000
+            )
+
+            await page.wait_for_timeout(2000)
+
+            event_links = await page.locator("a").evaluate_all("""
+                links => links
+                    .map(a => ({
+                        text: a.innerText,
+                        href: a.href
+                    }))
+                    .filter(a =>
+                        a.text &&
+                        a.href &&
+                        a.href.includes("artix.com/calendar/")
+                    )
+            """)
+
+            for event in event_links:
+
+                title = event["text"].strip()
+                href = event["href"]
+
+                match = re.search(date_pattern, title)
+
+                if not match:
+                    continue
+
+                month = int(match.group(1))
+                day = int(match.group(2))
+                year = int("20" + match.group(3))
+
+                try:
+                    event_start = datetime(year, month, day)
+
+                except Exception:
+                    continue
+
+                # Only recent boosts can still be active
+                lookback_start = today - timedelta(days=3)
+
+                if not (
+                    lookback_start.date()
+                    <= event_start.date()
+                    <= today.date()
+                ):
+                    continue
+
+                detail_page = await browser.new_page()
+
+                try:
+
+                    await detail_page.goto(
+                        href,
+                        wait_until="networkidle",
+                        timeout=60000
+                    )
+
+                    await detail_page.wait_for_timeout(1000)
+
+                    detail_text = await detail_page.locator(
+                        "body"
+                    ).inner_text()
+
+                except Exception:
+
+                    await detail_page.close()
+                    continue
+
+                # Default duration
+                duration_hours = 24
+
+                duration_match = re.search(
+                    r"(\d+)\s*hour",
+                    detail_text,
+                    re.IGNORECASE
                 )
 
-                page = await browser.new_page()
+                if duration_match:
+                    duration_hours = int(
+                        duration_match.group(1)
+                    )
 
-                await page.goto(
-                    "https://www.artix.com/calendar/",
-                    wait_until="networkidle",
-                    timeout=60000
+                event_end = event_start + timedelta(
+                    hours=duration_hours
                 )
 
-                # Wait for JS rendering
-                await page.wait_for_timeout(5000)
+                end_date_text = event_end.strftime(
+                    "%d %B %Y"
+                )
 
-                today_day = str(datetime.now().day)
+                if event_start <= today < event_end:
 
-                found_events = []
-
-                calendar_cells = page.locator("td")
-
-                count = await calendar_cells.count()
-
-                for i in range(count):
-
-                    cell = calendar_cells.nth(i)
+                   # Try getting event image from img#__mcenew
+                    image_url = None
 
                     try:
-                        cell_text = await cell.inner_text()
-                        cell_text = cell_text.strip()
 
-                    except:
-                        continue
+                        image_element = detail_page.locator("img#__mcenew").first
 
-                    if not cell_text:
-                        continue
+                        src = await image_element.get_attribute("src")
 
-                    lines = cell_text.split("\n")
+                        if src:
 
-                    if not lines:
-                        continue
+                            # Convert relative URL
+                            if src.startswith("/"):
+                                src = "https://www.artix.com" + src
 
-                    first_line = lines[0].strip()
+                            image_url = src
 
-                    # Match today's date
-                    if first_line == today_day:
+                    except Exception:
+                        image_url = None
 
-                        events = lines[1:]
+                    active_events.append({
+                        "title": title,
+                        "duration": duration_hours,
+                        "end_date": end_date_text,
+                        "link": href,
+                        "image": image_url
+                    })
 
-                        for event in events:
+                # CLOSE PAGE AFTER EVERYTHING
+                await detail_page.close()
 
-                            event = event.strip()
+            await browser.close()
 
-                            if event:
-                                found_events.append(event)
+        return active_events
 
-                await browser.close()
+    async def get_cached_active_events(self):
+        if (
+            self.cached_active_events is not None
+            and self.cache_is_valid(self.active_cache_timestamp)
+        ):
+            print("[CACHE] Using cached active AQW boosts")
+            return self.cached_active_events
 
-                return found_events
+        print("[CACHE] Refreshing active AQW boosts")
 
-        except Exception as e:
+        active_events = await self.scrape_active_events()
 
-            print(f"[CALENDAR ERROR] {e}")
+        self.cached_active_events = active_events
+        self.active_cache_timestamp = datetime.now()
 
-            return []
+        return active_events
+
+    async def scrape_week_events(self):
+        body_text = await self.fetch_artix_body_text()
+        lines = body_text.split("\n")
+
+        today = datetime.now()
+
+        start_date = today.replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+
+        end_date = start_date + timedelta(days=7)
+        weekly_events = {}
+
+        date_pattern = r"(\d{1,2})\.(\d{1,2})\.(\d{2})"
+
+        for line in lines:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            match = re.search(date_pattern, line)
+
+            if not match:
+                continue
+
+            month = int(match.group(1))
+            day = int(match.group(2))
+            year = int("20" + match.group(3))
+
+            try:
+                event_date = datetime(year, month, day)
+            except Exception:
+                continue
+
+            if start_date.date() <= event_date.date() <= end_date.date():
+                weekday = event_date.strftime("%A")
+                clean_event = line.strip()
+
+                if weekday not in weekly_events:
+                    weekly_events[weekday] = []
+
+                if clean_event not in weekly_events[weekday]:
+                    weekly_events[weekday].append(clean_event)
+
+        return weekly_events
+
+    async def get_cached_week_events(self):
+        if (
+            self.cached_week_events is not None
+            and self.cache_is_valid(self.week_cache_timestamp)
+        ):
+            print("[CACHE] Using cached weekly AQW boosts")
+            return self.cached_week_events
+
+        print("[CACHE] Refreshing weekly AQW boosts")
+
+        weekly_events = await self.scrape_week_events()
+
+        self.cached_week_events = weekly_events
+        self.week_cache_timestamp = datetime.now()
+
+        return weekly_events
 
     @app_commands.command(
         name="boost_today",
@@ -121,117 +316,8 @@ class Boosts(commands.Cog):
         await interaction.response.defer()
 
         try:
-            import re
-            from datetime import timedelta
 
-            today = datetime.now().replace(
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0
-            )
-
-            active_events = []
-
-            date_pattern = r"(\d{1,2})\.(\d{1,2})\.(\d{2})"
-
-            async with async_playwright() as p:
-
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page()
-
-                await page.goto(
-                    "https://www.artix.com/calendar/",
-                    wait_until="networkidle",
-                    timeout=60000
-                )
-
-                await page.wait_for_timeout(5000)
-
-                # Get all calendar event links
-                event_links = await page.locator("a").evaluate_all("""
-                    links => links
-                        .map(a => ({
-                            text: a.innerText,
-                            href: a.href
-                        }))
-                        .filter(a =>
-                            a.text &&
-                            a.href &&
-                            a.href.includes("artix.com/calendar/")
-                        )
-                """)
-
-                for event in event_links:
-
-                    title = event["text"].strip()
-                    href = event["href"]
-
-                    match = re.search(date_pattern, title)
-
-                    if not match:
-                        continue
-
-                    month = int(match.group(1))
-                    day = int(match.group(2))
-                    year = int("20" + match.group(3))
-
-                    try:
-                        event_start = datetime(year, month, day)
-                    except:
-                        continue
-                    
-                    lookback_start = today - timedelta(days=3)
-
-                    if not (lookback_start.date() <= event_start.date() <= today.date()):
-                        continue
-
-                    # Open event detail page
-                    detail_page = await browser.new_page()
-
-                    try:
-                        await detail_page.goto(
-                            href,
-                            wait_until="networkidle",
-                            timeout=60000
-                        )
-
-                        await detail_page.wait_for_timeout(2000)
-
-                        detail_text = await detail_page.locator("body").inner_text()
-
-                    except:
-                        await detail_page.close()
-                        continue
-
-                    await detail_page.close()
-
-                    # Default duration
-                    duration_hours = 24
-
-                    duration_match = re.search(
-                        r"(\d+)\s*hour",
-                        detail_text,
-                        re.IGNORECASE
-                    )
-
-                    if duration_match:
-                        duration_hours = int(duration_match.group(1))
-
-                    event_end = event_start + timedelta(hours=duration_hours)
-                    # Format end date text
-                    end_date_text = event_end.strftime("%d %B %Y")
-
-                    if event_start <= today < event_end:
-
-                        active_events.append(
-                            f"✨ **{title}**\n"
-                            f"⏳ Duration: **{duration_hours} hours**\n"
-                            f"📅 Ends: **{end_date_text}**\n"
-                            f"🔗 [View Event]({href})"
-                        )
-
-                await browser.close()
+            active_events = await self.get_cached_active_events()
 
             embed = discord.Embed(
                 title="📢 AQW Active Boosts Today",
@@ -242,13 +328,31 @@ class Boosts(commands.Cog):
                 color=discord.Color.gold()
             )
 
+            embed.set_thumbnail(
+                url="https://www.aq.com/images/aqw-icon.png"
+            )
+
             if active_events:
 
-                embed.add_field(
-                    name="🔥 Active Now",
-                    value="\n\n".join(active_events[:10]),
-                    inline=False
-                )
+                for event in active_events[:5]:
+
+                    value = (
+                        f"⏳ Duration: **{event['duration']} hours**\n"
+                        f"📅 Ends: **{event['end_date']}**\n"
+                        f"🔗 [View Event]({event['link']})"
+                    )
+
+                    embed.add_field(
+                        name=f"✨ {event['title']}",
+                        value=value,
+                        inline=False
+                    )
+
+                    # Use first image found
+                    if event.get("image"):
+                        embed.set_image(
+                            url=event["image"]
+                        )
 
             else:
 
@@ -281,88 +385,10 @@ class Boosts(commands.Cog):
         description="Show upcoming AQW boosts/events"
     )
     async def boost_week(self, interaction: discord.Interaction):
-
         await interaction.response.defer()
 
         try:
-
-            import re
-            from datetime import timedelta
-
-            async with async_playwright() as p:
-
-                browser = await p.chromium.launch(
-                    headless=True
-                )
-
-                page = await browser.new_page()
-
-                await page.goto(
-                    "https://www.artix.com/calendar/",
-                    wait_until="networkidle",
-                    timeout=60000
-                )
-
-                await page.wait_for_timeout(5000)
-
-                body_text = await page.locator("body").inner_text()
-
-                await browser.close()
-
-            # Split page into lines
-            lines = body_text.split("\n")
-
-            # Next 7 days
-            today = datetime.now()
-
-            start_date = today.replace(
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0
-            )
-
-            end_date = start_date + timedelta(days=7)
-
-            weekly_events = {}
-
-            # Match dates like 5.11.26
-            date_pattern = r"(\d{1,2})\.(\d{1,2})\.(\d{2})"
-
-            for line in lines:
-
-                line = line.strip()
-
-                if not line:
-                    continue
-
-                match = re.search(date_pattern, line)
-
-                if not match:
-                    continue
-
-                month = int(match.group(1))
-                day = int(match.group(2))
-                year = int("20" + match.group(3))
-
-                try:
-                    event_date = datetime(year, month, day)
-                except:
-                    continue
-
-                # Only next 7 days
-                if start_date.date() <= event_date.date() <= end_date.date():
-
-                    weekday = event_date.strftime("%A")
-
-                    # Keep original event text including date
-                    clean_event = line.strip()
-
-                    if weekday not in weekly_events:
-                        weekly_events[weekday] = []
-
-                    if clean_event not in weekly_events[weekday]:
-                        weekly_events[weekday].append(clean_event)
+            weekly_events = await self.get_cached_week_events()
 
             embed = discord.Embed(
                 title="📢 AQW Upcoming Boost Schedule",
@@ -391,26 +417,30 @@ class Boosts(commands.Cog):
                 "Sunday"
             ]
 
-            for day in ordered_days:
+            has_events = False
 
+            for day in ordered_days:
                 events = weekly_events.get(day, [])
 
                 if not events:
                     continue
 
-                formatted_events = []
+                has_events = True
 
-                for event in events:
-
-                    formatted_events.append(
-                        f"✨ {event}"
-                    )
-
-                value = "\n".join(formatted_events)
+                value = "\n".join(
+                    [f"✨ {event}" for event in events]
+                )
 
                 embed.add_field(
                     name=f"📅 {day}",
                     value=value,
+                    inline=False
+                )
+
+            if not has_events:
+                embed.add_field(
+                    name="No Upcoming Events Detected",
+                    value="No boosts/events were detected for the next 7 days.",
                     inline=False
                 )
 
@@ -423,7 +453,6 @@ class Boosts(commands.Cog):
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
-
             embed = discord.Embed(
                 title="Calendar Error",
                 description=str(e),
@@ -431,6 +460,7 @@ class Boosts(commands.Cog):
             )
 
             await interaction.followup.send(embed=embed)
+
     @app_commands.command(
         name="boost_setchannel",
         description="Set AQW reminder channel"
@@ -443,14 +473,11 @@ class Boosts(commands.Cog):
         interaction: discord.Interaction,
         channel: discord.TextChannel
     ):
-
         if not interaction.user.guild_permissions.manage_guild:
-
             await interaction.response.send_message(
                 "You do not have permission.",
                 ephemeral=True
             )
-
             return
 
         guild_id = str(interaction.guild.id)
@@ -481,25 +508,20 @@ class Boosts(commands.Cog):
         interaction: discord.Interaction,
         status: str
     ):
-
         if not interaction.user.guild_permissions.manage_guild:
-
             await interaction.response.send_message(
                 "You do not have permission.",
                 ephemeral=True
             )
-
             return
 
         status = status.lower()
 
         if status not in ["on", "off"]:
-
             await interaction.response.send_message(
                 "Use `on` or `off`.",
                 ephemeral=True
             )
-
             return
 
         guild_id = str(interaction.guild.id)
@@ -518,28 +540,22 @@ class Boosts(commands.Cog):
 
     @tasks.loop(minutes=30)
     async def daily_boost_reminder(self):
-
         await self.bot.wait_until_ready()
 
         now = datetime.now()
 
-        # Send between 9:00 - 9:29 AM
         if now.hour != 9 or now.minute >= 30:
             return
 
         today_date = now.strftime("%Y-%m-%d")
+        active_events = await self.get_cached_active_events()
 
-        events = await self.fetch_artix_calendar_events()
-
-        if not events:
+        if not active_events:
             return
 
-        event_text = "\n".join(
-            [f"• {event}" for event in events]
-        )
+        event_text = "\n\n".join(active_events[:10])
 
         for guild_id, config in self.settings.items():
-
             if not config.get("notify_enabled"):
                 continue
 
@@ -557,25 +573,28 @@ class Boosts(commands.Cog):
                 continue
 
             embed = discord.Embed(
-                title="AQW Daily Calendar Reminder",
+                title="📢 AQW Daily Boost Reminder",
                 description=event_text,
                 color=discord.Color.gold()
             )
 
-            embed.set_footer(
-                text="Automatic reminder from Artix Calendar"
+            embed.set_thumbnail(
+                url="https://www.aq.com/images/aqw-icon.png"
             )
 
-            try:
+            embed.set_footer(
+                text="AdventureQuest Worlds • Artix Calendar"
+            )
 
+            embed.timestamp = datetime.utcnow()
+
+            try:
                 await channel.send(embed=embed)
 
                 self.settings[guild_id]["last_sent_date"] = today_date
-
                 self.save_settings()
 
             except Exception as e:
-
                 print(f"[REMINDER ERROR] {e}")
 
 
