@@ -16,6 +16,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def load_cogs():
     await bot.load_extension("cogs.verification")
     await bot.load_extension("cogs.tickets")
+    await bot.load_extension("cogs.boosts")
 
 
 @bot.event
