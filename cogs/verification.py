@@ -136,6 +136,13 @@ def check_aqw_character(ign: str, target_guild_name: str):
 
 
 class VerifyModal(discord.ui.Modal, title="AQW Verification"):
+    nickname = discord.ui.TextInput(
+        label="Your nickname / name",
+        placeholder="Example: Danish",
+        required=True,
+        max_length=24
+    )
+
     ign = discord.ui.TextInput(
         label="AdventureQuest Worlds IGN",
         placeholder="Enter your AQW character name",
@@ -148,6 +155,8 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
 
         guild_id = str(interaction.guild.id)
         user_id = str(interaction.user.id)
+
+        nickname = self.nickname.value.strip()
         ign = self.ign.value.strip()
 
         config = load_config()
@@ -233,8 +242,22 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
                     await interaction.user.add_roles(member_role)
                     roles_given.append(member_role.mention)
 
+            new_nickname = f"{nickname} ● {result['page_ign']}"
+
+            if len(new_nickname) > 32:
+                new_nickname = new_nickname[:32]
+
+            nickname_changed = True
+
+            try:
+                await interaction.user.edit(nick=new_nickname)
+            except discord.Forbidden:
+                nickname_changed = False
+
             data[guild_id][user_id] = {
+                "nickname": nickname,
                 "ign": result["page_ign"],
+                "discord_nickname": new_nickname,
                 "guild": result["guild"],
                 "in_target_guild": result["in_target_guild"],
                 "time": now
@@ -245,6 +268,7 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
             if result["in_target_guild"]:
                 message = (
                     f"✅ Verification successful!\n\n"
+                    f"Name: `{nickname}`\n"
                     f"IGN: `{result['page_ign']}`\n"
                     f"AQW Guild: `{result['guild']}`\n\n"
                     f"You received:\n"
@@ -256,10 +280,19 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
 
                 message = (
                     f"✅ Character verified as AQW player.\n\n"
+                    f"Name: `{nickname}`\n"
                     f"IGN: `{result['page_ign']}`\n"
                     f"AQW Guild: `{guild_text}`\n\n"
                     f"You are not in `{target_guild_name}`, so you received only:\n"
                     f"• {adventure_role.mention}"
+                )
+
+            if nickname_changed:
+                message += f"\n\nNickname changed to:\n`{new_nickname}`"
+            else:
+                message += (
+                    "\n\n⚠️ I could not change your nickname. "
+                    "Please make sure my bot role is above your role."
                 )
 
             await interaction.followup.send(
