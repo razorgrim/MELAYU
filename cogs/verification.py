@@ -1,58 +1,12 @@
-import os
-import json
 import time
 import requests
 import discord
 from bs4 import BeautifulSoup
 from discord.ext import commands
 from discord import app_commands
+from database import execute, fetchone
 
-
-DATA_FILE = "data/verified_users.json"
-CONFIG_FILE = "data/verification_config.json"
 COOLDOWN_SECONDS = 7200
-
-
-def ensure_data_folder():
-    os.makedirs("data", exist_ok=True)
-
-
-def load_json(file_path):
-    ensure_data_folder()
-
-    if not os.path.exists(file_path):
-        with open(file_path, "w") as file:
-            json.dump({}, file, indent=4)
-
-    try:
-        with open(file_path, "r") as file:
-            return json.load(file)
-    except:
-        return {}
-
-
-def save_json(file_path, data):
-    ensure_data_folder()
-
-    with open(file_path, "w") as file:
-        json.dump(data, file, indent=4)
-
-
-def load_data():
-    return load_json(DATA_FILE)
-
-
-def save_data(data):
-    save_json(DATA_FILE, data)
-
-
-def load_config():
-    return load_json(CONFIG_FILE)
-
-
-def save_config(config):
-    save_json(CONFIG_FILE, config)
-
 
 def check_aqw_character(ign: str, target_guild_name: str):
     url = f"https://account.aq.com/CharPage?id={ign}"
@@ -153,23 +107,28 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        guild_id = str(interaction.guild.id)
-        user_id = str(interaction.user.id)
+        guild_id = interaction.guild.id
+        user_id = interaction.user.id
 
         nickname = self.nickname.value.strip()
         ign = self.ign.value.strip()
 
-        config = load_config()
+        # Get server config from MySQL
+        server_config = await fetchone(
+            """
+            SELECT * FROM verification_config
+            WHERE guild_id = %s
+            """,
+            (guild_id,)
+        )
 
-        if guild_id not in config:
+        if not server_config:
             await interaction.followup.send(
                 "❌ Verification is not set up for this server yet.\n"
                 "Ask an admin to use `/verification_setup` first.",
                 ephemeral=True
             )
             return
-
-        server_config = config[guild_id]
 
         target_guild_name = server_config["aqw_guild_name"]
         adventure_role_id = server_config["adventure_role_id"]
@@ -192,18 +151,25 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
             )
             return
 
-        data = load_data()
-
-        if guild_id not in data:
-            data[guild_id] = {}
+        # Check existing verified user
+        existing_user = await fetchone(
+            """
+            SELECT * FROM verified_users
+            WHERE guild_id = %s AND user_id = %s
+            """,
+            (guild_id, user_id)
+        )
 
         now = time.time()
 
-        if user_id in data[guild_id]:
-            last_verified = data[guild_id][user_id]["time"]
+        if existing_user:
+            last_verified = existing_user["verified_at"].timestamp()
 
             if now - last_verified < COOLDOWN_SECONDS:
-                remaining_seconds = int(COOLDOWN_SECONDS - (now - last_verified))
+                remaining_seconds = int(
+                    COOLDOWN_SECONDS - (now - last_verified)
+                )
+
                 remaining_minutes = remaining_seconds // 60
 
                 await interaction.followup.send(
@@ -213,15 +179,32 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
                 )
                 return
 
-        for uid, info in data[guild_id].items():
-            if info["ign"].lower() == ign.lower() and uid != user_id:
-                await interaction.followup.send(
-                    f"❌ IGN `{ign}` is already claimed by another Discord user in this server.",
-                    ephemeral=True
-                )
-                return
+        # Check duplicate IGN
+        existing_ign = await fetchone(
+            """
+            SELECT * FROM verified_users
+            WHERE guild_id = %s
+            AND ign = %s
+            AND user_id != %s
+            """,
+            (
+                guild_id,
+                ign,
+                user_id
+            )
+        )
 
-        result = check_aqw_character(ign, target_guild_name)
+        if existing_ign:
+            await interaction.followup.send(
+                f"❌ IGN `{ign}` is already claimed by another Discord user in this server.",
+                ephemeral=True
+            )
+            return
+
+        result = check_aqw_character(
+            ign,
+            target_guild_name
+        )
 
         if not result["found"]:
             await interaction.followup.send(
@@ -231,17 +214,15 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
             return
 
         try:
-            roles_given = []
 
             if adventure_role not in interaction.user.roles:
                 await interaction.user.add_roles(adventure_role)
-                roles_given.append(adventure_role.mention)
 
             if result["in_target_guild"]:
                 if member_role not in interaction.user.roles:
                     await interaction.user.add_roles(member_role)
-                    roles_given.append(member_role.mention)
 
+            # Nickname format
             new_nickname = f"{nickname} ● {result['page_ign']}"
 
             if len(new_nickname) > 32:
@@ -250,22 +231,49 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
             nickname_changed = True
 
             try:
-                await interaction.user.edit(nick=new_nickname)
+                await interaction.user.edit(
+                    nick=new_nickname
+                )
+
             except discord.Forbidden:
                 nickname_changed = False
 
-            data[guild_id][user_id] = {
-                "nickname": nickname,
-                "ign": result["page_ign"],
-                "discord_nickname": new_nickname,
-                "guild": result["guild"],
-                "in_target_guild": result["in_target_guild"],
-                "time": now
-            }
+            # Save to MySQL
+            await execute(
+                """
+                INSERT INTO verified_users
+                (
+                    guild_id,
+                    user_id,
+                    nickname,
+                    ign,
+                    discord_nickname,
+                    aqw_guild,
+                    in_target_guild
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
 
-            save_data(data)
+                ON DUPLICATE KEY UPDATE
+                    nickname = VALUES(nickname),
+                    ign = VALUES(ign),
+                    discord_nickname = VALUES(discord_nickname),
+                    aqw_guild = VALUES(aqw_guild),
+                    in_target_guild = VALUES(in_target_guild),
+                    verified_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    guild_id,
+                    user_id,
+                    nickname,
+                    result["page_ign"],
+                    new_nickname,
+                    result["guild"],
+                    result["in_target_guild"]
+                )
+            )
 
             if result["in_target_guild"]:
+
                 message = (
                     f"✅ Verification successful!\n\n"
                     f"Name: `{nickname}`\n"
@@ -275,8 +283,14 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
                     f"• {adventure_role.mention}\n"
                     f"• {member_role.mention}"
                 )
+
             else:
-                guild_text = result["guild"] if result["guild"] else "No guild"
+
+                guild_text = (
+                    result["guild"]
+                    if result["guild"]
+                    else "No guild"
+                )
 
                 message = (
                     f"✅ Character verified as AQW player.\n\n"
@@ -288,7 +302,11 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
                 )
 
             if nickname_changed:
-                message += f"\n\nNickname changed to:\n`{new_nickname}`"
+                message += (
+                    f"\n\nNickname changed to:\n"
+                    f"`{new_nickname}`"
+                )
+
             else:
                 message += (
                     "\n\n⚠️ I could not change your nickname. "
@@ -355,17 +373,33 @@ class Verification(commands.Cog):
             )
             return
 
-        config = load_config()
-        guild_id = str(interaction.guild.id)
+        guild_id = interaction.guild.id
 
-        config[guild_id] = {
-            "aqw_guild_name": aqw_guild_name,
-            "adventure_role_id": adventure_role.id,
-            "member_role_id": member_role.id,
-            "image_url": image_url
-        }
-
-        save_config(config)
+        await execute(
+            """
+            INSERT INTO verification_config
+            (
+                guild_id,
+                aqw_guild_name,
+                adventure_role_id,
+                member_role_id,
+                image_url
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                aqw_guild_name = VALUES(aqw_guild_name),
+                adventure_role_id = VALUES(adventure_role_id),
+                member_role_id = VALUES(member_role_id),
+                image_url = VALUES(image_url)
+            """,
+            (
+                guild_id,
+                aqw_guild_name,
+                adventure_role.id,
+                member_role.id,
+                image_url
+            )
+        )
 
         await interaction.response.send_message(
             f"✅ Verification setup completed.\n\n"
@@ -376,8 +410,8 @@ class Verification(commands.Cog):
         )
 
     @app_commands.command(
-        name="verification",
-        description="Send the AQW verification panel"
+    name="verification",
+    description="Send the AQW verification panel"
     )
     async def verification(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
@@ -387,10 +421,17 @@ class Verification(commands.Cog):
             )
             return
 
-        guild_id = str(interaction.guild.id)
-        config = load_config()
+        guild_id = interaction.guild.id
 
-        if guild_id not in config:
+        server_config = await fetchone(
+            """
+            SELECT * FROM verification_config
+            WHERE guild_id = %s
+            """,
+            (guild_id,)
+        )
+
+        if not server_config:
             await interaction.response.send_message(
                 "❌ Verification is not set up yet.\n\n"
                 "Use:\n"
@@ -398,8 +439,6 @@ class Verification(commands.Cog):
                 ephemeral=True
             )
             return
-
-        server_config = config[guild_id]
 
         aqw_guild_name = server_config["aqw_guild_name"]
         adventure_role = interaction.guild.get_role(server_config["adventure_role_id"])
@@ -413,6 +452,8 @@ class Verification(commands.Cog):
                 "**How it works:**\n"
                 f"• All valid AQW players receive {adventure_role.mention if adventure_role else '`Adventure Role`'}\n"
                 f"• Players inside **{aqw_guild_name}** also receive {member_role.mention if member_role else '`Guild Member Role`'}\n\n"
+                "**Nickname Format:**\n"
+                "`nickname ● ign`\n\n"
                 "**Requirement:**\n"
                 "Your AQW character page must be public and accessible."
             ),

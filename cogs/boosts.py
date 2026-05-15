@@ -2,14 +2,10 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta
-import json
-import os
 import re
-
+from database import execute, fetchone, fetchall
 from playwright.async_api import async_playwright
 
-
-SETTINGS_FILE = "data/boost_settings.json"
 CACHE_MINUTES = 60
 
 
@@ -17,8 +13,7 @@ class Boosts(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.settings = self.load_settings()
-
+        
         # Cache for /boost_today
         self.cached_active_events = None
         self.active_cache_timestamp = None
@@ -31,22 +26,6 @@ class Boosts(commands.Cog):
 
     def cog_unload(self):
         self.daily_boost_reminder.cancel()
-
-    def load_settings(self):
-        os.makedirs("data", exist_ok=True)
-
-        if not os.path.exists(SETTINGS_FILE):
-            with open(SETTINGS_FILE, "w") as file:
-                json.dump({}, file, indent=4)
-
-        with open(SETTINGS_FILE, "r") as file:
-            return json.load(file)
-
-    def save_settings(self):
-        os.makedirs("data", exist_ok=True)
-
-        with open(SETTINGS_FILE, "w") as file:
-            json.dump(self.settings, file, indent=4)
 
     def cache_is_valid(self, timestamp):
         if timestamp is None:
@@ -480,16 +459,28 @@ class Boosts(commands.Cog):
             )
             return
 
-        guild_id = str(interaction.guild.id)
+        guild_id = interaction.guild.id
 
-        if guild_id not in self.settings:
-            self.settings[guild_id] = {}
+        await execute(
+            """
+            INSERT INTO server_settings
+            (
+                guild_id,
+                boost_channel_id,
+                boost_notify_enabled
+            )
+            VALUES (%s, %s, %s)
 
-        self.settings[guild_id]["channel_id"] = channel.id
-        self.settings[guild_id]["notify_enabled"] = True
-        self.settings[guild_id]["last_sent_date"] = ""
-
-        self.save_settings()
+            ON DUPLICATE KEY UPDATE
+                boost_channel_id = VALUES(boost_channel_id),
+                boost_notify_enabled = VALUES(boost_notify_enabled)
+            """,
+            (
+                guild_id,
+                channel.id,
+                True
+            )
+        )
 
         await interaction.response.send_message(
             f"AQW reminders will be sent to {channel.mention}",
@@ -524,27 +515,40 @@ class Boosts(commands.Cog):
             )
             return
 
-        guild_id = str(interaction.guild.id)
+        guild_id = interaction.guild.id
 
-        if guild_id not in self.settings:
-            self.settings[guild_id] = {}
+        await execute(
+            """
+            INSERT INTO server_settings
+            (
+                guild_id,
+                boost_notify_enabled
+            )
+            VALUES (%s, %s)
 
-        self.settings[guild_id]["notify_enabled"] = status == "on"
-
-        self.save_settings()
+            ON DUPLICATE KEY UPDATE
+                boost_notify_enabled = VALUES(boost_notify_enabled)
+            """,
+            (
+                guild_id,
+                status == "on"
+            )
+        )
 
         await interaction.response.send_message(
             f"AQW reminders are now **{status}**.",
             ephemeral=True
         )
 
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=1)
     async def daily_boost_reminder(self):
         await self.bot.wait_until_ready()
 
         now = datetime.now()
 
-        if now.hour != 9 or now.minute >= 30:
+        print(f"[BOOST LOOP] {now}")
+        
+        if now.hour != 12 or now.minute != 0:
             return
 
         today_date = now.strftime("%Y-%m-%d")
@@ -552,17 +556,59 @@ class Boosts(commands.Cog):
 
         if not active_events:
             return
+        
+        embed = discord.Embed(
+            title="📢 AQW Daily Boost Reminder",
+            description=(
+                "These boosts/events are currently active based on "
+                "the Artix Calendar event duration."
+            ),
+            color=discord.Color.gold()
+        )
 
-        event_text = "\n\n".join(active_events[:10])
+        embed.set_thumbnail(
+            url="https://www.aq.com/images/aqw-icon.png"
+        )
 
-        for guild_id, config in self.settings.items():
-            if not config.get("notify_enabled"):
+        for event in active_events[:5]:
+
+            value = (
+                f"⏳ Duration: **{event['duration']} hours**\n"
+                f"📅 Ends: **{event['end_date']}**\n"
+                f"🔗 [View Event]({event['link']})"
+            )
+
+            embed.add_field(
+                name=f"✨ {event['title']}",
+                value=value,
+                inline=False
+            )
+
+            # Use first image found
+            if event.get("image"):
+                embed.set_image(
+                    url=event["image"]
+                )
+
+        embed.set_footer(
+            text="AdventureQuest Worlds • Artix Calendar"
+        )
+
+        embed.timestamp = datetime.utcnow()
+
+        settings = await fetchall(
+            """
+            SELECT * FROM server_settings
+            WHERE boost_notify_enabled = TRUE
+            """
+        )
+
+        for config in settings:
+            
+            if config["boost_last_sent_date"] and str(config["boost_last_sent_date"]) == today_date:
                 continue
 
-            if config.get("last_sent_date") == today_date:
-                continue
-
-            channel_id = config.get("channel_id")
+            channel_id = config["boost_channel_id"]
 
             if not channel_id:
                 continue
@@ -572,27 +618,20 @@ class Boosts(commands.Cog):
             if channel is None:
                 continue
 
-            embed = discord.Embed(
-                title="📢 AQW Daily Boost Reminder",
-                description=event_text,
-                color=discord.Color.gold()
-            )
-
-            embed.set_thumbnail(
-                url="https://www.aq.com/images/aqw-icon.png"
-            )
-
-            embed.set_footer(
-                text="AdventureQuest Worlds • Artix Calendar"
-            )
-
-            embed.timestamp = datetime.utcnow()
-
             try:
                 await channel.send(embed=embed)
 
-                self.settings[guild_id]["last_sent_date"] = today_date
-                self.save_settings()
+                await execute(
+                    """
+                    UPDATE server_settings
+                    SET boost_last_sent_date = %s
+                    WHERE guild_id = %s
+                    """,
+                    (
+                        today_date,
+                        config["guild_id"]
+                    )
+                )
 
             except Exception as e:
                 print(f"[REMINDER ERROR] {e}")

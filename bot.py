@@ -3,6 +3,7 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import asyncio
+from database import connect_db
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -17,6 +18,7 @@ async def load_cogs():
     await bot.load_extension("cogs.verification")
     await bot.load_extension("cogs.tickets")
     await bot.load_extension("cogs.boosts")
+
 
 
 @bot.event
@@ -35,6 +37,7 @@ if TOKEN is None:
 
 async def main():
     async with bot:
+        await connect_db()
         await load_cogs()
 
         while True:

@@ -50,5 +50,31 @@
     "257538511958179840": {
         "ign": "RawrRawr",
         "time": 1778005639.6312692
+    },
+    "780703792748298240": {
+        "582945457865621513": {
+            "nickname": "zif",
+            "ign": "Zorr",
+            "discord_nickname": "zif \u25cf Zorr",
+            "guild": "M E L A Y U",
+            "in_target_guild": true,
+            "time": 1778595371.3736117
+        },
+        "701396896366985238": {
+            "nickname": "Nish",
+            "ign": "Elyz",
+            "discord_nickname": "Nish \u25cf Elyz",
+            "guild": "M E L A Y U",
+            "in_target_guild": true,
+            "time": 1778595450.0868554
+        },
+        "1268595767082483832": {
+            "nickname": "man",
+            "ign": "maiman_",
+            "discord_nickname": "man \u25cf maiman_",
+            "guild": "M E L A Y U",
+            "in_target_guild": true,
+            "time": 1778595513.4162996
+        }
     }
 }
