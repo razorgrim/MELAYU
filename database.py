@@ -18,11 +18,11 @@ async def connect_db():
     global pool
 
     pool = await aiomysql.create_pool(
-        host=os.getenv("DB_HOST"),
-        port=int(os.getenv("DB_PORT")),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("DB_NAME"),
+        host=DB_CONFIG["host"],
+        port=int(os.getenv("DB_PORT", 3306)),
+        user=DB_CONFIG["user"],
+        password=DB_CONFIG["password"],
+        db=DB_CONFIG["db"],
         autocommit=True,
         minsize=1,
         maxsize=10

@@ -15,9 +15,19 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 async def load_cogs():
-    await bot.load_extension("cogs.verification")
-    await bot.load_extension("cogs.tickets")
-    await bot.load_extension("cogs.boosts")
+    async def load_cogs():
+        cogs = [
+            "cogs.verification",
+            "cogs.tickets",
+            "cogs.boosts"
+        ]
+
+        for cog in cogs:
+            try:
+                await bot.load_extension(cog)
+                print(f"[COG] Loaded {cog}")
+            except Exception as e:
+                print(f"[COG ERROR] Failed to load {cog}: {e}")
 
 
 
@@ -39,6 +49,7 @@ async def main():
     async with bot:
         await connect_db()
         await load_cogs()
+        await bot.start(TOKEN)
 
         while True:
             try:
