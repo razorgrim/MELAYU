@@ -1,31 +1,4 @@
--- phpMyAdmin SQL Dump
--- version 5.2.1
--- https://www.phpmyadmin.net/
---
--- Host: 127.0.0.1
--- Generation Time: May 15, 2026 at 07:05 PM
--- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
-
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
-SET time_zone = "+00:00";
-
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-
---
--- Database: `melayu_bot`
---
-
--- --------------------------------------------------------
-
---
--- Table structure for table `active_tickets`
---
+CREATE DATABASE melayu_bot;
 
 CREATE TABLE `active_tickets` (
   `id` int(11) NOT NULL,
@@ -49,22 +22,12 @@ CREATE TABLE `active_tickets` (
   `last_activity` double DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
 
---
--- Table structure for table `active_ticket_helpers`
---
 
 CREATE TABLE `active_ticket_helpers` (
   `ticket_id` int(11) NOT NULL,
   `user_id` bigint(20) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `active_ticket_helper_points`
---
 
 CREATE TABLE `active_ticket_helper_points` (
   `ticket_id` int(11) NOT NULL,
@@ -72,11 +35,6 @@ CREATE TABLE `active_ticket_helper_points` (
   `points` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
-
---
--- Table structure for table `helper_points`
---
 
 CREATE TABLE `helper_points` (
   `guild_id` bigint(20) NOT NULL,
@@ -86,11 +44,7 @@ CREATE TABLE `helper_points` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
--- --------------------------------------------------------
 
---
--- Table structure for table `server_settings`
---
 
 CREATE TABLE `server_settings` (
   `guild_id` bigint(20) NOT NULL,
@@ -106,11 +60,6 @@ CREATE TABLE `server_settings` (
 
 
 
--- --------------------------------------------------------
-
---
--- Table structure for table `ticket_config`
---
 
 CREATE TABLE `ticket_config` (
   `guild_id` bigint(20) NOT NULL,
@@ -124,11 +73,6 @@ CREATE TABLE `ticket_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
--- --------------------------------------------------------
-
---
--- Table structure for table `verification_config`
---
 
 CREATE TABLE `verification_config` (
   `guild_id` bigint(20) NOT NULL,
@@ -138,12 +82,6 @@ CREATE TABLE `verification_config` (
   `image_url` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
--- --------------------------------------------------------
-
---
--- Table structure for table `verified_users`
---
 
 CREATE TABLE `verified_users` (
   `id` int(11) NOT NULL,
@@ -158,13 +96,7 @@ CREATE TABLE `verified_users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
---
--- Indexes for dumped tables
---
 
---
--- Indexes for table `active_tickets`
---
 ALTER TABLE `active_tickets`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `channel_id` (`channel_id`),
@@ -173,69 +105,41 @@ ALTER TABLE `active_tickets`
   ADD KEY `idx_active_tickets_guild` (`guild_id`),
   ADD KEY `idx_active_tickets_requester` (`requester_id`);
 
---
--- Indexes for table `active_ticket_helpers`
---
 ALTER TABLE `active_ticket_helpers`
   ADD PRIMARY KEY (`ticket_id`,`user_id`);
 
---
--- Indexes for table `active_ticket_helper_points`
---
 ALTER TABLE `active_ticket_helper_points`
   ADD PRIMARY KEY (`ticket_id`,`user_id`);
 
---
--- Indexes for table `helper_points`
---
+
 ALTER TABLE `helper_points`
   ADD PRIMARY KEY (`guild_id`,`user_id`),
   ADD KEY `idx_helper_points_guild` (`guild_id`),
   ADD KEY `idx_helper_points_points` (`points`);
 
---
--- Indexes for table `server_settings`
---
+
 ALTER TABLE `server_settings`
   ADD PRIMARY KEY (`guild_id`);
 
---
--- Indexes for table `ticket_config`
---
+
 ALTER TABLE `ticket_config`
   ADD PRIMARY KEY (`guild_id`);
 
---
--- Indexes for table `verification_config`
---
+
 ALTER TABLE `verification_config`
   ADD PRIMARY KEY (`guild_id`);
 
---
--- Indexes for table `verified_users`
---
+
 ALTER TABLE `verified_users`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_user_per_server` (`guild_id`,`user_id`),
   ADD UNIQUE KEY `unique_ign_per_server` (`guild_id`,`ign`);
 
---
--- AUTO_INCREMENT for dumped tables
---
 
---
--- AUTO_INCREMENT for table `active_tickets`
---
 ALTER TABLE `active_tickets`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
---
--- AUTO_INCREMENT for table `verified_users`
---
+
 ALTER TABLE `verified_users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
