@@ -1,14 +1,18 @@
 {
     "2026-05-15": {
-        "completed_tickets": 0,
-        "cancelled_tickets": 1,
-        "total_points_given": 0,
-        "helpers": {},
+        "completed_tickets": 1,
+        "cancelled_tickets": 2,
+        "total_points_given": 10,
+        "helpers": {
+            "293619479559143425": 5
+        },
         "requesters": {
-            "582945457865621513": 0
+            "582945457865621513": 5
         },
         "activities": {
-            "UltraDarkon": 1
+            "UltraDarkon": 1,
+            "UltraDage": 1,
+            "ChampionDrakath": 1
         }
     }
 }
