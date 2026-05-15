@@ -6,6 +6,13 @@ load_dotenv()
 
 pool = None
 
+DB_CONFIG = {
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "db": os.getenv("DB_NAME"),
+    "autocommit": True
+}
 
 async def connect_db():
     global pool
