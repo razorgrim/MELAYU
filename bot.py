@@ -73,5 +73,25 @@ async def on_ready():
             print(f"- /{cmd.name}")
     except Exception as e:
         print(f"[SYNC ERROR] {type(e).__name__}: {e}")
+
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    print(f"[COMMAND ERROR] /{interaction.command.name if interaction.command else 'unknown'}")
+    print(type(error).__name__)
+    print(error)
+
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                "❌ Command error. Check bot terminal logs.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "❌ Command error. Check bot terminal logs.",
+                ephemeral=True
+            )
+    except Exception as e:
+        print(f"[ERROR HANDLER FAILED] {e}")
         
 asyncio.run(main())
