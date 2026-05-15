@@ -1,0 +1,14 @@
+{
+    "2026-05-15": {
+        "completed_tickets": 0,
+        "cancelled_tickets": 1,
+        "total_points_given": 0,
+        "helpers": {},
+        "requesters": {
+            "582945457865621513": 0
+        },
+        "activities": {
+            "UltraDarkon": 1
+        }
+    }
+}
