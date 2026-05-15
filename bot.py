@@ -15,9 +15,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 async def load_cogs():
-    await bot.load_extension("cogs.verification")
-    await bot.load_extension("cogs.tickets")
-    await bot.load_extension("cogs.boosts")
+    cogs = [
+        "cogs.verification",
+        "cogs.tickets",
+        "cogs.boosts",
+    ]
+
+    for cog in cogs:
+        try:
+            await bot.load_extension(cog)
+            print(f"[COG] Loaded {cog}")
+        except Exception as e:
+            print(f"[COG ERROR] Failed to load {cog}: {type(e).__name__}: {e}")
 
 
 
@@ -30,7 +39,6 @@ async def on_ready():
         print(f"Synced {len(synced)} slash commands")
     except Exception as e:
         print(f"Sync error: {e}")
-
 
 if TOKEN is None:
     raise RuntimeError("DISCORD_TOKEN is not set in the environment or .env file")
@@ -54,5 +62,16 @@ async def main():
                     continue
                 raise
 
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
 
+    try:
+        synced = await bot.tree.sync()
+        print(f"[SYNC] Synced {len(synced)} slash commands")
+        for cmd in synced:
+            print(f"- /{cmd.name}")
+    except Exception as e:
+        print(f"[SYNC ERROR] {type(e).__name__}: {e}")
+        
 asyncio.run(main())
