@@ -1,6 +1,7 @@
-CREATE DATABASE melayu_bot;
+CREATE DATABASE IF NOT EXISTS `melayu_bot` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `melayu_bot`;
 
-CREATE TABLE `active_tickets` (
+CREATE TABLE IF NOT EXISTS `active_tickets` (
   `id` int(11) NOT NULL,
   `guild_id` bigint(20) NOT NULL,
   `requester_id` bigint(20) NOT NULL,
@@ -24,19 +25,20 @@ CREATE TABLE `active_tickets` (
 
 
 
-CREATE TABLE `active_ticket_helpers` (
+
+CREATE TABLE IF NOT EXISTS `active_ticket_helpers` (
   `ticket_id` int(11) NOT NULL,
   `user_id` bigint(20) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `active_ticket_helper_points` (
+CREATE TABLE IF NOT EXISTS `active_ticket_helper_points` (
   `ticket_id` int(11) NOT NULL,
   `user_id` bigint(20) NOT NULL,
   `points` int(11) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE `helper_points` (
+CREATE TABLE IF NOT EXISTS `helper_points` (
   `guild_id` bigint(20) NOT NULL,
   `user_id` bigint(20) NOT NULL,
   `points` int(11) DEFAULT 0,
@@ -44,9 +46,7 @@ CREATE TABLE `helper_points` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-
-
-CREATE TABLE `server_settings` (
+CREATE TABLE IF NOT EXISTS `server_settings` (
   `guild_id` bigint(20) NOT NULL,
   `boost_channel_id` bigint(20) DEFAULT NULL,
   `boost_notify_enabled` tinyint(1) DEFAULT 0,
@@ -61,7 +61,7 @@ CREATE TABLE `server_settings` (
 
 
 
-CREATE TABLE `ticket_config` (
+CREATE TABLE IF NOT EXISTS `ticket_config` (
   `guild_id` bigint(20) NOT NULL,
   `officer_role_id` bigint(20) NOT NULL,
   `helper_role_id` bigint(20) NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE `ticket_config` (
 
 
 
-CREATE TABLE `verification_config` (
+CREATE TABLE IF NOT EXISTS `verification_config` (
   `guild_id` bigint(20) NOT NULL,
   `aqw_guild_name` varchar(100) NOT NULL,
   `adventure_role_id` bigint(20) NOT NULL,
@@ -83,7 +83,7 @@ CREATE TABLE `verification_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-CREATE TABLE `verified_users` (
+CREATE TABLE IF NOT EXISTS `verified_users` (
   `id` int(11) NOT NULL,
   `guild_id` bigint(20) NOT NULL,
   `user_id` bigint(20) NOT NULL,
