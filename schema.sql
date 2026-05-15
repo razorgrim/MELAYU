@@ -1,180 +1,241 @@
-CREATE DATABASE IF NOT EXISTS melayu_bot;
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1
+-- Generation Time: May 15, 2026 at 07:05 PM
+-- Server version: 10.4.32-MariaDB
+-- PHP Version: 8.2.12
 
-USE melayu_bot;
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
 
--- =========================================
--- TICKET CONFIG
--- =========================================
 
-DROP TABLE IF EXISTS ticket_config;
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
-CREATE TABLE ticket_config (
-    guild_id BIGINT PRIMARY KEY,
+--
+-- Database: `melayu_bot`
+--
 
-    officer_role_id BIGINT NOT NULL,
-    helper_role_id BIGINT NOT NULL,
-    bonus_role_id BIGINT NOT NULL,
+-- --------------------------------------------------------
 
-    ticket_category_id BIGINT NOT NULL,
-    ticket_log_channel_id BIGINT NOT NULL
-);
+--
+-- Table structure for table `active_tickets`
+--
 
--- =========================================
--- HELPER POINTS
--- =========================================
+CREATE TABLE `active_tickets` (
+  `id` int(11) NOT NULL,
+  `guild_id` bigint(20) NOT NULL,
+  `requester_id` bigint(20) NOT NULL,
+  `channel_id` bigint(20) NOT NULL,
+  `activity` varchar(255) DEFAULT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `points` int(11) DEFAULT 0,
+  `manual_points` tinyint(1) DEFAULT 0,
+  `max_helpers` int(11) DEFAULT 3,
+  `room_number` int(11) DEFAULT NULL,
+  `completed` tinyint(1) DEFAULT 0,
+  `helpers_locked` tinyint(1) DEFAULT 0,
+  `warned` tinyint(1) DEFAULT 0,
+  `ign` varchar(100) DEFAULT NULL,
+  `server_name` varchar(100) DEFAULT NULL,
+  `room_name` varchar(100) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `created_at` double DEFAULT NULL,
+  `last_activity` double DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DROP TABLE IF EXISTS helper_points;
+-- --------------------------------------------------------
 
-CREATE TABLE helper_points (
-    guild_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    points INT DEFAULT 0,
+--
+-- Table structure for table `active_ticket_helpers`
+--
 
-    PRIMARY KEY(guild_id, user_id)
-);
+CREATE TABLE `active_ticket_helpers` (
+  `ticket_id` int(11) NOT NULL,
+  `user_id` bigint(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =========================================
--- ACTIVE TICKETS
--- =========================================
+-- --------------------------------------------------------
 
-DROP TABLE IF EXISTS active_tickets;
+--
+-- Table structure for table `active_ticket_helper_points`
+--
 
-CREATE TABLE active_tickets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE `active_ticket_helper_points` (
+  `ticket_id` int(11) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `points` int(11) DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    guild_id BIGINT NOT NULL,
-    requester_id BIGINT NOT NULL,
+-- --------------------------------------------------------
 
-    channel_id BIGINT NOT NULL UNIQUE,
+--
+-- Table structure for table `helper_points`
+--
 
-    activity VARCHAR(255),
-    category VARCHAR(255),
+CREATE TABLE `helper_points` (
+  `guild_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `points` int(11) DEFAULT 0,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    points INT DEFAULT 0,
-    manual_points BOOLEAN DEFAULT FALSE,
 
-    max_helpers INT DEFAULT 3,
-    room_number INT,
+-- --------------------------------------------------------
 
-    completed BOOLEAN DEFAULT FALSE,
-    helpers_locked BOOLEAN DEFAULT FALSE,
-    warned BOOLEAN DEFAULT FALSE,
+--
+-- Table structure for table `server_settings`
+--
 
-    ign VARCHAR(100) NULL,
-    server_name VARCHAR(100) NULL,
-    room_name VARCHAR(100) NULL,
+CREATE TABLE `server_settings` (
+  `guild_id` bigint(20) NOT NULL,
+  `boost_channel_id` bigint(20) DEFAULT NULL,
+  `boost_notify_enabled` tinyint(1) DEFAULT 0,
+  `boost_last_sent_date` date DEFAULT NULL,
+  `ticket_category_id` bigint(20) DEFAULT NULL,
+  `ticket_log_channel_id` bigint(20) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    details TEXT NULL,
 
-    created_at DOUBLE,
-    last_activity DOUBLE,
 
-    UNIQUE KEY unique_user_ticket (guild_id, requester_id)
-);
 
--- =========================================
--- ACTIVE TICKET HELPERS
--- =========================================
+-- --------------------------------------------------------
 
-DROP TABLE IF EXISTS active_ticket_helpers;
+--
+-- Table structure for table `ticket_config`
+--
 
-CREATE TABLE active_ticket_helpers (
-    ticket_id INT NOT NULL,
-    user_id BIGINT NOT NULL,
+CREATE TABLE `ticket_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `officer_role_id` bigint(20) NOT NULL,
+  `helper_role_id` bigint(20) NOT NULL,
+  `bonus_role_id` bigint(20) NOT NULL,
+  `ticket_category_id` bigint(20) NOT NULL,
+  `ticket_log_channel_id` bigint(20) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    PRIMARY KEY(ticket_id, user_id)
-);
 
--- =========================================
--- ACTIVE TICKET HELPER CUSTOM POINTS
--- =========================================
+-- --------------------------------------------------------
 
-DROP TABLE IF EXISTS active_ticket_helper_points;
+--
+-- Table structure for table `verification_config`
+--
 
-CREATE TABLE active_ticket_helper_points (
-    ticket_id INT NOT NULL,
-    user_id BIGINT NOT NULL,
-    points INT DEFAULT 0,
+CREATE TABLE `verification_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `aqw_guild_name` varchar(100) NOT NULL,
+  `adventure_role_id` bigint(20) NOT NULL,
+  `member_role_id` bigint(20) NOT NULL,
+  `image_url` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    PRIMARY KEY(ticket_id, user_id)
-);
 
--- =========================================
--- VERIFICATION CONFIG
--- =========================================
+-- --------------------------------------------------------
 
-DROP TABLE IF EXISTS verification_config;
+--
+-- Table structure for table `verified_users`
+--
 
-CREATE TABLE verification_config (
-    guild_id BIGINT PRIMARY KEY,
+CREATE TABLE `verified_users` (
+  `id` int(11) NOT NULL,
+  `guild_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `nickname` varchar(100) DEFAULT NULL,
+  `ign` varchar(100) NOT NULL,
+  `discord_nickname` varchar(100) DEFAULT NULL,
+  `aqw_guild` varchar(100) DEFAULT NULL,
+  `in_target_guild` tinyint(1) DEFAULT 0,
+  `verified_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    aqw_guild_name VARCHAR(100) NOT NULL,
 
-    adventure_role_id BIGINT NOT NULL,
-    member_role_id BIGINT NOT NULL,
+--
+-- Indexes for dumped tables
+--
 
-    image_url TEXT NULL,
+--
+-- Indexes for table `active_tickets`
+--
+ALTER TABLE `active_tickets`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `channel_id` (`channel_id`),
+  ADD UNIQUE KEY `unique_user_ticket` (`guild_id`,`requester_id`),
+  ADD KEY `idx_active_tickets_channel` (`channel_id`),
+  ADD KEY `idx_active_tickets_guild` (`guild_id`),
+  ADD KEY `idx_active_tickets_requester` (`requester_id`);
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--
+-- Indexes for table `active_ticket_helpers`
+--
+ALTER TABLE `active_ticket_helpers`
+  ADD PRIMARY KEY (`ticket_id`,`user_id`);
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP
-);
+--
+-- Indexes for table `active_ticket_helper_points`
+--
+ALTER TABLE `active_ticket_helper_points`
+  ADD PRIMARY KEY (`ticket_id`,`user_id`);
 
--- =========================================
--- VERIFIED USERS
--- =========================================
+--
+-- Indexes for table `helper_points`
+--
+ALTER TABLE `helper_points`
+  ADD PRIMARY KEY (`guild_id`,`user_id`),
+  ADD KEY `idx_helper_points_guild` (`guild_id`),
+  ADD KEY `idx_helper_points_points` (`points`);
 
-DROP TABLE IF EXISTS verified_users;
+--
+-- Indexes for table `server_settings`
+--
+ALTER TABLE `server_settings`
+  ADD PRIMARY KEY (`guild_id`);
 
-CREATE TABLE verified_users (
-    guild_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
+--
+-- Indexes for table `ticket_config`
+--
+ALTER TABLE `ticket_config`
+  ADD PRIMARY KEY (`guild_id`);
 
-    nickname VARCHAR(100),
+--
+-- Indexes for table `verification_config`
+--
+ALTER TABLE `verification_config`
+  ADD PRIMARY KEY (`guild_id`);
 
-    ign VARCHAR(100) NOT NULL,
-    aqw_guild VARCHAR(100),
+--
+-- Indexes for table `verified_users`
+--
+ALTER TABLE `verified_users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_user_per_server` (`guild_id`,`user_id`),
+  ADD UNIQUE KEY `unique_ign_per_server` (`guild_id`,`ign`);
 
-    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--
+-- AUTO_INCREMENT for dumped tables
+--
 
-    last_verified_at DOUBLE NULL,
+--
+-- AUTO_INCREMENT for table `active_tickets`
+--
+ALTER TABLE `active_tickets`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
-    PRIMARY KEY (guild_id, user_id),
+--
+-- AUTO_INCREMENT for table `verified_users`
+--
+ALTER TABLE `verified_users`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+COMMIT;
 
-    UNIQUE KEY unique_ign_per_guild (guild_id, ign)
-);
-
--- =========================================
--- SERVER SETTINGS (BOOSTS)
--- =========================================
-
-DROP TABLE IF EXISTS server_settings;
-
-CREATE TABLE server_settings (
-    guild_id BIGINT PRIMARY KEY,
-
-    boost_channel_id BIGINT NULL,
-
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP
-);
-
--- =========================================
--- INDEXES
--- =========================================
-
-CREATE INDEX idx_active_tickets_channel
-ON active_tickets(channel_id);
-
-CREATE INDEX idx_active_tickets_guild
-ON active_tickets(guild_id);
-
-CREATE INDEX idx_active_tickets_requester
-ON active_tickets(requester_id);
-
-CREATE INDEX idx_helper_points_guild
-ON helper_points(guild_id);
-
-CREATE INDEX idx_helper_points_points
-ON helper_points(points DESC);
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
