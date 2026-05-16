@@ -8,6 +8,38 @@ from playwright.async_api import async_playwright
 
 CACHE_MINUTES = 60
 
+BOOST_EMOJIS = {
+    "class": "<:ClassBoost:1505181826657026178>",
+    "exp": "<:ExpBoost:1505181750018572340>",
+    "rep": "<:RepBoost:1505181675347382272>",
+    "gold": "<:GoldBoost:1505177565181120694>",
+    "member": "<:Member:1505181901462442104>",
+    "acs": "<:Acs:1505181977140007013>",
+}
+
+
+def get_boost_emoji(title):
+    title = title.lower()
+
+    if "class" in title:
+        return BOOST_EMOJIS["class"]
+
+    if "exp" in title or "xp" in title:
+        return BOOST_EMOJIS["exp"]
+
+    if "rep" in title or "reputation" in title:
+        return BOOST_EMOJIS["rep"]
+
+    if "gold" in title:
+        return BOOST_EMOJIS["gold"]
+
+    if "member" in title:
+        return BOOST_EMOJIS["member"]
+
+    if "acs" in title or "ac" in title:
+        return BOOST_EMOJIS["acs"]
+
+    return "✨"
 
 class Boosts(commands.Cog):
 
@@ -322,7 +354,7 @@ class Boosts(commands.Cog):
                     )
 
                     embed.add_field(
-                        name=f"✨ {event['title']}",
+                        name=f"{get_boost_emoji(event['title'])} {event['title']}",
                         value=value,
                         inline=False
                     )
@@ -407,7 +439,7 @@ class Boosts(commands.Cog):
                 has_events = True
 
                 value = "\n".join(
-                    [f"✨ {event}" for event in events]
+                    [f"{get_boost_emoji(event)} {event}" for event in events]
                 )
 
                 embed.add_field(
@@ -579,7 +611,7 @@ class Boosts(commands.Cog):
             )
 
             embed.add_field(
-                name=f"✨ {event['title']}",
+                name=f"{get_boost_emoji(event['title'])} {event['title']}",
                 value=value,
                 inline=False
             )
