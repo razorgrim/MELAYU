@@ -424,7 +424,7 @@ class Boosts(commands.Cog):
                 )
 
             embed.set_footer(
-                text="AdventureQuest Worlds • Artix Calendar"
+                text="AdventureQuest Worlds :xpboost: • Artix Calendar"
             )
 
             embed.timestamp = datetime.utcnow()
@@ -615,11 +615,37 @@ class Boosts(commands.Cog):
 
             channel = self.bot.get_channel(channel_id)
 
+            verification_config = await fetchone(
+                """
+                SELECT adventure_role_id
+                FROM verification_config
+                WHERE guild_id = %s
+                """,
+                (config["guild_id"],)
+            )
+
+            role_mention = ""
+
+            if verification_config:
+
+                role = channel.guild.get_role(
+                    verification_config["adventure_role_id"]
+                )
+
+                if role:
+                    role_mention = role.mention
+
             if channel is None:
                 continue
 
             try:
-                await channel.send(embed=embed)
+                if role_mention:
+                    await channel.send(
+                        content=f"{role_mention} AQW boosts are now active!",
+                        embed=embed
+                    )
+                else:
+                    await channel.send(embed=embed)
 
                 await execute(
                     """
