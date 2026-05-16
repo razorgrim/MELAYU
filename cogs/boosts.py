@@ -11,7 +11,7 @@ CACHE_MINUTES = 60
 BOOST_EMOJIS = {
     "class": "<:ClassBoost:1505181826657026178>",
     "exp": "<:ExpBoost:1505181750018572340>",
-    "rep": "<:RepBoost:1505181675347382272>",
+    "rep": "<:RepBoost:1505358694118850660>",
     "gold": "<:GoldBoost:1505177565181120694>",
     "member": "<:Member:1505181901462442104>",
     "acs": "<:Acs:1505181977140007013>",
