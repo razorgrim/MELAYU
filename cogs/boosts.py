@@ -428,9 +428,7 @@ class Boosts(commands.Cog):
                 url="https://www.aq.com/images/aqw-icon.png"
             )
 
-            embed.set_image(
-                url="https://www.artix.com/images/artix-entertainment-share.png"
-            )
+            embed.set_image(url="https://i.imgur.com/vBeUbYo.jpeg")
 
             ordered_days = [
                 "Monday",
@@ -470,7 +468,7 @@ class Boosts(commands.Cog):
                 )
 
             embed.set_footer(
-                text="AdventureQuest Worlds :xpboost: • Artix Calendar"
+                text="AdventureQuest Worlds • Artix Calendar"
             )
 
             embed.timestamp = datetime.utcnow()
