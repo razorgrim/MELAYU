@@ -455,7 +455,7 @@ class Boosts(commands.Cog):
                 )
 
                 embed.add_field(
-                    name=f"📅 {day}",
+                    name=f"<:Melayu:1505432584090423476> {day}",
                     value=value,
                     inline=False
                 )
