@@ -55,6 +55,9 @@ def get_boost_emoji(title):
 
     return "<:bagicon2:1505377192236814439>"
 
+def format_short_date(date_obj):
+    return f"{date_obj.day}.{date_obj.month}.{date_obj.year}"
+
 class Boosts(commands.Cog):
 
     def __init__(self, bot):
@@ -203,13 +206,13 @@ class Boosts(commands.Cog):
                         duration_match.group(1)
                     )
 
-                event_end = event_start + timedelta(
-                    hours=duration_hours
-                )
+                event_end = event_start + timedelta(hours=duration_hours)
 
-                end_date_text = event_end.strftime(
-                    "%d %B %Y"
-                )
+                # Display the last active calendar date.
+                # Example: Monday 18.5.2026 + 48 hours = active until 19.5.2026
+                display_end_date = event_end - timedelta(seconds=1)
+
+                end_date_text = format_short_date(display_end_date)
 
                 if event_start <= today < event_end:
 
@@ -233,8 +236,15 @@ class Boosts(commands.Cog):
                     except Exception:
                         image_url = None
 
+                    # Remove original MM.DD.YY from title
+                    clean_title = re.sub(date_pattern, "", title).strip()
+                    clean_title = clean_title.strip("-–—:| ")
+
+                    # Add formatted DD.MM.YYYY beside title
+                    formatted_start_date = format_short_date(event_start)
+
                     active_events.append({
-                        "title": title,
+                        "title": f"{clean_title} {formatted_start_date}",
                         "duration": duration_hours,
                         "end_date": end_date_text,
                         "link": href,
@@ -305,13 +315,19 @@ class Boosts(commands.Cog):
 
             if start_date.date() <= event_date.date() <= end_date.date():
                 weekday = event_date.strftime("%A")
-                clean_event = line.strip()
+                date_text = format_short_date(event_date)
 
-                if weekday not in weekly_events:
-                    weekly_events[weekday] = []
+                day_key = f"{weekday} {date_text}"
 
-                if clean_event not in weekly_events[weekday]:
-                    weekly_events[weekday].append(clean_event)
+                # Remove date from boost description
+                clean_event = re.sub(date_pattern, "", line).strip()
+                clean_event = clean_event.strip("-–—:| ")
+
+                if day_key not in weekly_events:
+                    weekly_events[day_key] = []
+
+                if clean_event not in weekly_events[day_key]:
+                    weekly_events[day_key].append(clean_event)
 
         return weekly_events
 
@@ -363,7 +379,7 @@ class Boosts(commands.Cog):
 
                     value = (
                         f"⏳ Duration: **{event['duration']} hours**\n"
-                        f"📅 Ends: **{event['end_date']}**\n"
+                        f"🕧 Ends: **{event['end_date']}**\n"
                         f"🔗 [View Event]({event['link']})"
                     )
 
@@ -430,19 +446,9 @@ class Boosts(commands.Cog):
 
             embed.set_image(url="https://i.imgur.com/vBeUbYo.jpeg")
 
-            ordered_days = [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday"
-            ]
-
             has_events = False
 
-            for day in ordered_days:
+            for day in weekly_events:
                 events = weekly_events.get(day, [])
 
                 if not events:
@@ -455,7 +461,7 @@ class Boosts(commands.Cog):
                 )
 
                 embed.add_field(
-                    name=f"<:Melayu:1505432584090423476> {day}",
+                    name=f"<:Member:1505373039267680457>  {day}",
                     value=value,
                     inline=False
                 )

@@ -19,6 +19,7 @@ async def load_cogs():
         "cogs.verification",
         "cogs.tickets",
         "cogs.boosts",
+        "cogs.charpage",
     ]
 
     for cog in cogs:
@@ -93,5 +94,5 @@ async def on_app_command_error(interaction, error):
             )
     except Exception as e:
         print(f"[ERROR HANDLER FAILED] {e}")
-        
+
 asyncio.run(main())
