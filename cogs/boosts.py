@@ -9,12 +9,17 @@ from playwright.async_api import async_playwright
 CACHE_MINUTES = 60
 
 BOOST_EMOJIS = {
-    "class": "<:ClassBoost:1505181826657026178>",
-    "exp": "<:ExpBoost:1505181750018572340>",
-    "rep": "<:RepBoost:1505359488125894746>",
-    "gold": "<:GoldBoost:1505177565181120694>",
-    "member": "<:Member:1505181901462442104>",
-    "acs": "<:Acs:1505181977140007013>",
+    "class": "<:ClassBoost:1505372617014775928>",
+    "exp": "<:ExpBoost:1505372494922780753>",
+    "rep": "<:RepBoost:1505372317650255984>",
+    "gold": "<:GoldBoost:1505359354780586065>",
+    "member": "<:Member:1505373039267680457>",
+    "acs": "<:Acs:1505374359445831730>",
+    "seasonal": "<:seasonaltag:1505375179923263649>",
+    "rare": "<:raretag:1505375179923263649>",
+    "legend": "<:legendtag:1505375321816436757>",
+    
+    
 }
 
 
@@ -38,8 +43,17 @@ def get_boost_emoji(title):
 
     if "acs" in title or "ac" in title:
         return BOOST_EMOJIS["acs"]
+    
+    if "seasonal" in title:
+        return BOOST_EMOJIS["seasonal"]
+    
+    if "rare" in title:
+        return BOOST_EMOJIS["rare"]
+    
+    if "legend" in title:
+        return BOOST_EMOJIS["legend"]
 
-    return "✨"
+    return "<:bagicon2:1505377192236814439>"
 
 class Boosts(commands.Cog):
 
