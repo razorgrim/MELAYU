@@ -53,7 +53,7 @@ ACTIVITIES = {
         "Deimos": 1,
         "Frozenlair": 1,
         "Sevencircleswar": 1,
-        "Flameuserper": 4,
+        "Flameuserper": 3,
     },
     "TempleShrine": {
         "TempleShrine Mid": 5,
