@@ -14,5 +14,19 @@
             "UltraDage": 1,
             "ChampionDrakath": 1
         }
+    },
+    "2026-05-18": {
+        "completed_tickets": 0,
+        "cancelled_tickets": 5,
+        "total_points_given": 0,
+        "helpers": {},
+        "requesters": {
+            "582945457865621513": 0
+        },
+        "activities": {
+            "UltraWarden": 1,
+            "ChampionDrakath": 1,
+            "Flameuserper": 3
+        }
     }
 }

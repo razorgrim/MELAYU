@@ -53,6 +53,7 @@ ACTIVITIES = {
         "Deimos": 1,
         "Frozenlair": 1,
         "Sevencircleswar": 1,
+        "Flameuserper": 4,
     },
     "TempleShrine": {
         "TempleShrine Mid": 5,
@@ -65,9 +66,15 @@ ACTIVITIES = {
 }
 
 
-def get_max_helpers(category):
-    if "7-Man" in category or "Daily" in category:
+def get_max_helpers(category, selected_activities=None):
+    if category == "Daily Quests":
+        if selected_activities == ["Flameuserper"]:
+            return 1
         return 6
+
+    if "7-Man" in category:
+        return 6
+
     return 3
 
 async def get_server_config(guild_id):
@@ -288,7 +295,7 @@ class ActivityMultiSelect(discord.ui.Select):
         ]
 
         super().__init__(
-            placeholder="Select one or more ultras...",
+            placeholder="Select one or more activities...",
             options=options,
             min_values=1,
             max_values=len(options)
@@ -322,7 +329,7 @@ class ActivityMultiSelect(discord.ui.Select):
             return
 
         helper_role = interaction.guild.get_role(config["helper_role_id"])
-        max_helpers = get_max_helpers(self.category)
+        max_helpers = get_max_helpers(self.category, selected_activities)
 
         ticket_category = interaction.guild.get_channel(config["ticket_category_id"])
 
@@ -354,8 +361,8 @@ class ActivityMultiSelect(discord.ui.Select):
             if room_number not in used_numbers:
                 break
 
-        first_activity = selected_activities[0].lower().replace(" ", "-")
-        channel_name = f"ticket-{first_activity}-{room_number}"
+        category_slug = self.category.lower().replace(" ", "-")
+        channel_name = f"ticket-{category_slug}-{room_number}"
 
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
