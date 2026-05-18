@@ -4,6 +4,7 @@ from discord.ext import commands
 from bs4 import BeautifulSoup
 import re
 import aiohttp
+from urllib.parse import quote_plus
 
 
 class CharPage(commands.Cog):
@@ -11,7 +12,9 @@ class CharPage(commands.Cog):
         self.bot = bot
 
     async def fetch_charpage(self, ign: str):
-        url = f"https://account.aq.com/CharPage?id={ign}"
+        ign = ign.strip()
+        encoded_ign = quote_plus(ign)
+        url = f"https://account.aq.com/CharPage?id={encoded_ign}"
 
         headers = {
             "User-Agent": "Mozilla/5.0"
