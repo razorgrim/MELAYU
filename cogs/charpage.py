@@ -1,9 +1,9 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import aiohttp
 from bs4 import BeautifulSoup
 import re
+import aiohttp
 
 
 class CharPage(commands.Cog):
@@ -25,6 +25,27 @@ class CharPage(commands.Cog):
                 html = await response.text()
 
         return html, url
+    
+    async def fetch_badge_count(self, character_id):
+        url = f"https://account.aq.com/Charpage/Badges?ccid={character_id}"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        try:
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=20) as response:
+                    if response.status != 200:
+                        return "0"
+
+                    badges = await response.json()
+                    return str(len(badges))
+
+        except Exception as e:
+            print(f"[BADGE ERROR] {e}")
+
+        return "0"
 
     def clean_text(self, text):
         if not text:
@@ -83,6 +104,37 @@ class CharPage(commands.Cog):
         return f"[{name}](<{href}>)"
 
 
+    def find_ccid(self, html, soup):
+        # Look for a labeled Character ID field in the rendered page.
+        match = re.search(
+            r"Character\s*ID\s*[:\-]?\s*</?label>\s*([0-9]+)",
+            html,
+            re.IGNORECASE
+        )
+
+        if match:
+            return match.group(1)
+
+        match = re.search(r"ccid\s*[:=]\s*['\"]?(\d+)['\"]?", html, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+        match = re.search(r"[?&]ccid=(\d+)", html)
+        if match:
+            return match.group(1)
+
+        # Fallback: try to extract the label text from the parsed HTML
+        if soup:
+            label = soup.find(lambda tag: tag.name in ["label", "span"] and "character id" in tag.get_text(strip=True).lower())
+            if label:
+                text = label.get_text(" ", strip=True)
+                digits = re.search(r"(\d+)", text)
+                if digits:
+                    return digits.group(1)
+
+        return None
+
+
     def parse_charpage(self, html):
         soup = BeautifulSoup(html, "html.parser")
 
@@ -93,6 +145,8 @@ class CharPage(commands.Cog):
         data["faction"] = self.find_value(soup, "Faction")
         data["guild"] = self.find_value(soup, "Guild")
 
+        data["character_id"] = self.find_ccid(html, soup)
+
         # Linked item fields
         data["class"] = self.find_linked_value_raw(html, "Class")
         data["weapon"] = self.find_linked_value_raw(html, "Weapon")
@@ -101,7 +155,6 @@ class CharPage(commands.Cog):
         data["cape"] = self.find_linked_value_raw(html, "Cape")
         data["pet"] = self.find_linked_value_raw(html, "Pet")
         data["misc"] = self.find_linked_value_raw(html, "Misc")
-
 
         avatar = None
         img = soup.find(
@@ -140,6 +193,12 @@ class CharPage(commands.Cog):
             return
 
         data = self.parse_charpage(html)
+        if data["character_id"]:
+            data["total_badges"] = await self.fetch_badge_count(
+                data["character_id"]
+            )
+        else:
+            data["total_badges"] = "0"
 
         embed = discord.Embed(
             title=f"{ign}'s char page <:Melayu:1505432584090423476>:",
@@ -160,6 +219,13 @@ class CharPage(commands.Cog):
         embed.add_field(name="Faction:", value=data["faction"], inline=True)
 
         embed.add_field(name="Guild:", value=data["guild"], inline=True)
+        embed.add_field(name="Character ID:", value=data["character_id"] or "None", inline=True)
+
+        embed.add_field(
+            name="Total Badges:",
+            value=data["total_badges"],
+            inline=True
+        )
         
 
         embed.set_thumbnail(
