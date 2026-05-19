@@ -30,7 +30,151 @@ class CharPage(commands.Cog):
         return html, url
     
     async def fetch_badge_count(self, character_id):
+        badges = await self.fetch_badges(character_id)
+        return str(len(badges))
+
+    async def fetch_badges(self, character_id):
         url = f"https://account.aq.com/Charpage/Badges?ccid={character_id}"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        try:
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=20) as response:
+                    if response.status != 200:
+                        return []
+
+                    badges = await response.json()
+                    if isinstance(badges, dict):
+                        for key in ("badges", "data", "items"):
+                            if key in badges and isinstance(badges[key], list):
+                                return badges[key]
+                        return []
+
+                    if isinstance(badges, list):
+                        return badges
+
+        except Exception as e:
+            print(f"[BADGE ERROR] {e}")
+
+        return []
+
+    def normalize_badge_category(self, badge):
+        if not isinstance(badge, dict):
+            return ""
+
+        for key in ("scategory", "category", "sCategory", "Category"):
+            value = badge.get(key)
+            if value:
+                return str(value).strip().lower()
+
+        link = str(badge.get("link") or badge.get("Link") or "")
+        if link:
+            match = re.search(r"scategory\s*[:=]\s*[\"']?([^\"'&<>]+)", link, re.IGNORECASE)
+            if match:
+                return match.group(1).strip().lower()
+
+            match = re.search(r"[?&]scategory=([^&]+)", link, re.IGNORECASE)
+            if match:
+                return match.group(1).strip().lower()
+
+        return ""
+
+    def get_badge_display_name(self, badge):
+        if isinstance(badge, str):
+            return badge
+
+        if not isinstance(badge, dict):
+            return str(badge)
+
+        for key in ("name", "Name", "badge", "Badge", "sname", "SName"):
+            value = badge.get(key)
+            if value:
+                return str(value).strip()
+
+        link = badge.get("link") or badge.get("Link")
+        if link:
+            return self.clean_text(str(link))
+
+        return "Unknown Badge"
+
+    def get_badge_display_url(self, badge):
+        if not isinstance(badge, dict):
+            return None
+
+        for key in ("link", "Link", "url", "Url"):
+            value = badge.get(key)
+            if value:
+                return str(value).strip()
+
+        return None
+
+    def filter_badges_by_category(self, badges, category):
+        if not category:
+            return []
+
+        category_value = category.strip().lower()
+        filtered = []
+
+        for badge in badges:
+            badge_category = self.normalize_badge_category(badge)
+            if badge_category == category_value or category_value in badge_category:
+                filtered.append(badge)
+
+        return filtered
+
+    def get_badge_category_display_name(self, badge):
+        for key in ("scategory", "category", "sCategory", "Category"):
+            value = badge.get(key) if isinstance(badge, dict) else None
+            if value:
+                return str(value).strip()
+
+        normalized = self.normalize_badge_category(badge)
+        return normalized.title() if normalized else "Uncategorized"
+
+    def aggregate_badge_categories(self, badges):
+        counts = {}
+        display_names = {}
+
+        for badge in badges:
+            category_key = self.normalize_badge_category(badge) or "uncategorized"
+            display_name = self.get_badge_category_display_name(badge)
+
+            counts[category_key] = counts.get(category_key, 0) + 1
+            display_names.setdefault(category_key, display_name)
+
+        return [
+            (display_names[key], counts[key])
+            for key in sorted(counts, key=lambda k: counts[k], reverse=True)
+        ]
+
+    def format_badge_list(self, badges):
+        lines = []
+        for badge in badges:
+            name = self.get_badge_display_name(badge)
+            url = self.get_badge_display_url(badge)
+            if url and name:
+                line = f"[{discord.utils.escape_markdown(name)}](<{url}>)"
+            else:
+                line = discord.utils.escape_markdown(name)
+
+            if len("\n".join(lines + [line])) > 900:
+                break
+            lines.append(line)
+
+        if not lines:
+            return "None"
+
+        remaining = len(badges) - len(lines)
+        if remaining > 0:
+            lines.append(f"...and {remaining} more")
+
+        return "\n".join(lines)
+
+    async def fetch_treasure_points(self, character_id):
+        url = f"https://account.aq.com/CharPage/Inventory?ccid={character_id}"
 
         headers = {
             "User-Agent": "Mozilla/5.0"
@@ -42,11 +186,38 @@ class CharPage(commands.Cog):
                     if response.status != 200:
                         return "0"
 
-                    badges = await response.json()
-                    return str(len(badges))
+                    html = await response.text()
+                    return self.parse_treasure_points(html)
 
         except Exception as e:
-            print(f"[BADGE ERROR] {e}")
+            print(f"[TREASURE ERROR] {e}")
+
+        return "0"
+
+    def parse_treasure_points(self, html):
+        soup = BeautifulSoup(html, "html.parser")
+        treasure_text = soup.find(text=re.compile(r"treasure potion", re.I))
+
+        if treasure_text:
+            parent = treasure_text.parent
+            if parent:
+                next_count = parent.find_next(class_=re.compile(r"intCount", re.I))
+                if next_count:
+                    value = self.clean_text(next_count.get_text())
+                    if value.isdigit():
+                        return value
+
+        match = re.search(
+            r"treasure potion.*?class=[\"']intCount[\"'][^>]*>(\d+)<",
+            html,
+            re.IGNORECASE | re.DOTALL
+        )
+        if match:
+            return match.group(1)
+
+        match = re.search(r"treasure potion.*?(\d+)", html, re.IGNORECASE | re.DOTALL)
+        if match:
+            return match.group(1)
 
         return "0"
 
@@ -200,8 +371,12 @@ class CharPage(commands.Cog):
             data["total_badges"] = await self.fetch_badge_count(
                 data["character_id"]
             )
+            data["treasure_points"] = await self.fetch_treasure_points(
+                data["character_id"]
+            )
         else:
             data["total_badges"] = "0"
+            data["treasure_points"] = "0"
 
         embed = discord.Embed(
             title=f"{ign}'s char page <:Melayu:1505432584090423476>:",
@@ -229,7 +404,11 @@ class CharPage(commands.Cog):
             value=data["total_badges"],
             inline=True
         )
-        
+        embed.add_field(
+            name="Treasure Potions:",
+            value=data["treasure_points"],
+            inline=True
+        )
 
         embed.set_thumbnail(
             url="https://imgur.com/ILiLVM7.png"
@@ -244,6 +423,55 @@ class CharPage(commands.Cog):
             embed.set_image(url=data["avatar"])
 
         embed.set_footer(text="AdventureQuest Worlds Character Page")
+
+        await interaction.followup.send(embed=embed)
+
+
+    @app_commands.command(
+        name="badges",
+        description="Show badge counts by AQW badge category"
+    )
+    @app_commands.describe(
+        ign="AQW in-game name"
+    )
+    async def badges(self, interaction: discord.Interaction, ign: str):
+        await interaction.response.defer()
+
+        html, url = await self.fetch_charpage(ign)
+        if not html:
+            await interaction.followup.send(
+                f"Could not find character page for `{ign}`."
+            )
+            return
+
+        char_id = self.find_ccid(html, BeautifulSoup(html, "html.parser"))
+        if not char_id:
+            await interaction.followup.send(
+                "Could not determine the character ID from the page."
+            )
+            return
+
+        badges = await self.fetch_badges(char_id)
+        if not badges:
+            await interaction.followup.send(
+                f"No badge data found for `{ign}`."
+            )
+            return
+
+        category_counts = self.aggregate_badge_categories(badges)
+        total = sum(count for _, count in category_counts)
+        lines = [f"{name}\n{count} badges" for name, count in category_counts]
+
+        embed = discord.Embed(
+            title=f"Badge Count {ign}",
+            url=url,
+            color=discord.Color.gold()
+        )
+        embed.add_field(name="Total Badges", value=f"{total} badges total.", inline=False)
+        embed.add_field(name="Categories", value="\n\n".join(lines), inline=False)
+
+        embed.set_thumbnail(url="https://imgur.com/ILiLVM7.png")
+        embed.set_author(name="AQW MELAYU", icon_url="https://imgur.com/ILiLVM7.png")
 
         await interaction.followup.send(embed=embed)
 
