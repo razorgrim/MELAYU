@@ -1,6 +1,7 @@
 import time
 import requests
 import discord
+import aiohttp
 from bs4 import BeautifulSoup
 from discord.ext import commands
 from discord import app_commands
@@ -8,7 +9,7 @@ from database import execute, fetchone
 
 COOLDOWN_SECONDS = 7200
 
-def check_aqw_character(ign: str, target_guild_name: str):
+async def check_aqw_character(ign: str, target_guild_name: str):
     url = f"https://account.aq.com/CharPage?id={ign}"
 
     headers = {
@@ -16,8 +17,18 @@ def check_aqw_character(ign: str, target_guild_name: str):
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-    except requests.RequestException:
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    return {
+                        "found": False,
+                        "in_target_guild": False,
+                        "page_ign": None,
+                        "guild": None,
+                        "message": "Character page not found."
+                    }
+                html_text = await response.text()
+    except Exception:
         return {
             "found": False,
             "in_target_guild": False,
@@ -26,16 +37,7 @@ def check_aqw_character(ign: str, target_guild_name: str):
             "message": "Could not connect to AQW character page."
         }
 
-    if response.status_code != 200:
-        return {
-            "found": False,
-            "in_target_guild": False,
-            "page_ign": None,
-            "guild": None,
-            "message": "Character page not found."
-        }
-
-    soup = BeautifulSoup(response.text, "html.parser")
+    soup = BeautifulSoup(html_text, "html.parser")
     text = soup.get_text("\n", strip=True)
 
     title = soup.find("h1")
@@ -89,7 +91,225 @@ def check_aqw_character(ign: str, target_guild_name: str):
     }
 
 
-class VerifyModal(discord.ui.Modal, title="AQW Verification"):
+async def perform_verification(interaction: discord.Interaction, nickname: str, ign: str, nationality: str):
+    guild_id = interaction.guild.id
+    user_id = interaction.user.id
+
+    # Get server config from MySQL
+    server_config = await fetchone(
+        """
+        SELECT * FROM verification_config
+        WHERE guild_id = %s
+        """,
+        (guild_id,)
+    )
+
+    if not server_config:
+        await interaction.followup.send(
+            "❌ Verification is not set up for this server yet.\n"
+            "Ask an admin to use `/verification_setup` first.",
+            ephemeral=True
+        )
+        return
+
+    target_guild_name = server_config["aqw_guild_name"]
+    adventure_role_id = server_config["adventure_role_id"]
+    member_role_id = server_config["member_role_id"]
+
+    adventure_role = interaction.guild.get_role(adventure_role_id)
+    member_role = interaction.guild.get_role(member_role_id)
+
+    if adventure_role is None:
+        await interaction.followup.send(
+            "❌ Adventure role not found. Ask admin to run `/verification_setup` again.",
+            ephemeral=True
+        )
+        return
+
+    if member_role is None:
+        await interaction.followup.send(
+            "❌ Guild member role not found. Ask admin to run `/verification_setup` again.",
+            ephemeral=True
+        )
+        return
+
+    # Check existing verified user
+    existing_user = await fetchone(
+        """
+        SELECT * FROM verified_users
+        WHERE guild_id = %s AND user_id = %s
+        """,
+        (guild_id, user_id)
+    )
+
+    now = time.time()
+
+    if existing_user:
+        last_verified = existing_user["verified_at"].timestamp()
+
+        if now - last_verified < COOLDOWN_SECONDS:
+            remaining_seconds = int(
+                COOLDOWN_SECONDS - (now - last_verified)
+            )
+
+            remaining_minutes = remaining_seconds // 60
+
+            await interaction.followup.send(
+                f"⏳ You already verified recently.\n"
+                f"Try again in `{remaining_minutes}` minutes.",
+                ephemeral=True
+            )
+            return
+
+    # Check duplicate IGN
+    existing_ign = await fetchone(
+        """
+        SELECT * FROM verified_users
+        WHERE guild_id = %s
+        AND ign = %s
+        AND user_id != %s
+        """,
+        (
+            guild_id,
+            ign,
+            user_id
+        )
+    )
+
+    if existing_ign:
+        await interaction.followup.send(
+            f"❌ IGN `{ign}` is already claimed by another Discord user in this server.",
+            ephemeral=True
+        )
+        return
+
+    result = await check_aqw_character(
+        ign,
+        target_guild_name
+    )
+
+    if not result["found"]:
+        await interaction.followup.send(
+            f"❌ Verification failed.\n{result['message']}",
+            ephemeral=True
+        )
+        return
+
+    try:
+
+        if adventure_role not in interaction.user.roles:
+            await interaction.user.add_roles(adventure_role)
+
+        if result["in_target_guild"]:
+            if member_role not in interaction.user.roles:
+                await interaction.user.add_roles(member_role)
+
+        # Nickname format: "nickname ● ign ● Nationality"
+        new_nickname = f"{nickname} ● {result['page_ign']} ● {nationality}"
+
+        if len(new_nickname) > 32:
+            new_nickname = new_nickname[:32]
+
+        nickname_changed = True
+
+        try:
+            await interaction.user.edit(
+                nick=new_nickname
+            )
+
+        except discord.Forbidden:
+            nickname_changed = False
+
+        # Save to MySQL
+        await execute(
+            """
+            INSERT INTO verified_users
+            (
+                guild_id,
+                user_id,
+                nickname,
+                ign,
+                discord_nickname,
+                aqw_guild,
+                in_target_guild
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+
+            ON DUPLICATE KEY UPDATE
+                nickname = VALUES(nickname),
+                ign = VALUES(ign),
+                discord_nickname = VALUES(discord_nickname),
+                aqw_guild = VALUES(aqw_guild),
+                in_target_guild = VALUES(in_target_guild),
+                verified_at = CURRENT_TIMESTAMP
+            """,
+            (
+                guild_id,
+                user_id,
+                nickname,
+                result["page_ign"],
+                new_nickname,
+                result["guild"],
+                result["in_target_guild"]
+            )
+        )
+
+        if result["in_target_guild"]:
+
+            message = (
+                f"✅ Verification successful!\n\n"
+                f"Name: `{nickname}`\n"
+                f"IGN: `{result['page_ign']}`\n"
+                f"AQW Guild: `{result['guild']}`\n"
+                f"Nationality: `{nationality}`\n\n"
+                f"You received:\n"
+                f"• {adventure_role.mention}\n"
+                f"• {member_role.mention}"
+            )
+
+        else:
+
+            guild_text = (
+                result["guild"]
+                if result["guild"]
+                else "No guild"
+            )
+
+            message = (
+                f"✅ Character verified as AQW player.\n\n"
+                f"Name: `{nickname}`\n"
+                f"IGN: `{result['page_ign']}`\n"
+                f"AQW Guild: `{guild_text}`\n"
+                f"Nationality: `{nationality}`\n\n"
+                f"You are not in `{target_guild_name}`, so you received only:\n"
+                f"• {adventure_role.mention}"
+            )
+
+        if nickname_changed:
+            message += (
+                f"\n\nNickname changed to:\n"
+                f"`{new_nickname}`"
+            )
+
+        else:
+            message += (
+                "\n\n⚠️ I could not change your nickname. "
+                "Please make sure my bot role is above your role."
+            )
+
+        await interaction.followup.send(
+            message,
+            ephemeral=True
+        )
+
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ I cannot give the role. Move my bot role above the roles I need to assign.",
+            ephemeral=True
+        )
+
+
+class VerifyPredefinedModal(discord.ui.Modal):
     nickname = discord.ui.TextInput(
         label="Your nickname / name",
         placeholder="Example: Danish",
@@ -104,225 +324,75 @@ class VerifyModal(discord.ui.Modal, title="AQW Verification"):
         max_length=32
     )
 
+    def __init__(self, nationality: str):
+        super().__init__(title=f"AQW Verification ({nationality})")
+        self.nationality = nationality
+
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        nickname_val = self.nickname.value.strip()
+        ign_val = self.ign.value.strip()
+        await perform_verification(interaction, nickname_val, ign_val, self.nationality)
 
-        guild_id = interaction.guild.id
-        user_id = interaction.user.id
 
-        nickname = self.nickname.value.strip()
-        ign = self.ign.value.strip()
+class VerifyOthersModal(discord.ui.Modal, title="AQW Verification"):
+    nickname = discord.ui.TextInput(
+        label="Your nickname / name",
+        placeholder="Example: Danish",
+        required=True,
+        max_length=24
+    )
 
-        # Get server config from MySQL
-        server_config = await fetchone(
-            """
-            SELECT * FROM verification_config
-            WHERE guild_id = %s
-            """,
-            (guild_id,)
+    ign = discord.ui.TextInput(
+        label="AdventureQuest Worlds IGN",
+        placeholder="Enter your AQW character name",
+        required=True,
+        max_length=32
+    )
+
+    nationality = discord.ui.TextInput(
+        label="Your Nationality / Country",
+        placeholder="Example: TH, VN, US, etc.",
+        required=True,
+        max_length=10
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        nickname_val = self.nickname.value.strip()
+        ign_val = self.ign.value.strip()
+        nationality_val = self.nationality.value.strip().upper()
+        await perform_verification(interaction, nickname_val, ign_val, nationality_val)
+
+
+class NationalitySelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Malaysia (MY)", value="MY", emoji="🇲🇾"),
+            discord.SelectOption(label="Indonesia (ID)", value="ID", emoji="🇮🇩"),
+            discord.SelectOption(label="Philippines (PH)", value="PH", emoji="🇵🇭"),
+            discord.SelectOption(label="Singapore (SG)", value="SG", emoji="🇸🇬"),
+            discord.SelectOption(label="Others (Specify in form)", value="Others", emoji="🌐")
+        ]
+        super().__init__(
+            placeholder="Select your nationality...",
+            min_values=1,
+            max_values=1,
+            options=options
         )
 
-        if not server_config:
-            await interaction.followup.send(
-                "❌ Verification is not set up for this server yet.\n"
-                "Ask an admin to use `/verification_setup` first.",
-                ephemeral=True
-            )
-            return
+    async def callback(self, interaction: discord.Interaction):
+        val = self.values[0]
+        if val == "Others":
+            await interaction.response.send_modal(VerifyOthersModal())
+        else:
+            await interaction.response.send_modal(VerifyPredefinedModal(nationality=val))
 
-        target_guild_name = server_config["aqw_guild_name"]
-        adventure_role_id = server_config["adventure_role_id"]
-        member_role_id = server_config["member_role_id"]
 
-        adventure_role = interaction.guild.get_role(adventure_role_id)
-        member_role = interaction.guild.get_role(member_role_id)
-
-        if adventure_role is None:
-            await interaction.followup.send(
-                "❌ Adventure role not found. Ask admin to run `/verification_setup` again.",
-                ephemeral=True
-            )
-            return
-
-        if member_role is None:
-            await interaction.followup.send(
-                "❌ Guild member role not found. Ask admin to run `/verification_setup` again.",
-                ephemeral=True
-            )
-            return
-
-        # Check existing verified user
-        existing_user = await fetchone(
-            """
-            SELECT * FROM verified_users
-            WHERE guild_id = %s AND user_id = %s
-            """,
-            (guild_id, user_id)
-        )
-
-        now = time.time()
-
-        if existing_user:
-            last_verified = existing_user["verified_at"].timestamp()
-
-            if now - last_verified < COOLDOWN_SECONDS:
-                remaining_seconds = int(
-                    COOLDOWN_SECONDS - (now - last_verified)
-                )
-
-                remaining_minutes = remaining_seconds // 60
-
-                await interaction.followup.send(
-                    f"⏳ You already verified recently.\n"
-                    f"Try again in `{remaining_minutes}` minutes.",
-                    ephemeral=True
-                )
-                return
-
-        # Check duplicate IGN
-        existing_ign = await fetchone(
-            """
-            SELECT * FROM verified_users
-            WHERE guild_id = %s
-            AND ign = %s
-            AND user_id != %s
-            """,
-            (
-                guild_id,
-                ign,
-                user_id
-            )
-        )
-
-        if existing_ign:
-            await interaction.followup.send(
-                f"❌ IGN `{ign}` is already claimed by another Discord user in this server.",
-                ephemeral=True
-            )
-            return
-
-        result = check_aqw_character(
-            ign,
-            target_guild_name
-        )
-
-        if not result["found"]:
-            await interaction.followup.send(
-                f"❌ Verification failed.\n{result['message']}",
-                ephemeral=True
-            )
-            return
-
-        try:
-
-            if adventure_role not in interaction.user.roles:
-                await interaction.user.add_roles(adventure_role)
-
-            if result["in_target_guild"]:
-                if member_role not in interaction.user.roles:
-                    await interaction.user.add_roles(member_role)
-
-            # Nickname format
-            new_nickname = f"{nickname} ● {result['page_ign']}"
-
-            if len(new_nickname) > 32:
-                new_nickname = new_nickname[:32]
-
-            nickname_changed = True
-
-            try:
-                await interaction.user.edit(
-                    nick=new_nickname
-                )
-
-            except discord.Forbidden:
-                nickname_changed = False
-
-            # Save to MySQL
-            await execute(
-                """
-                INSERT INTO verified_users
-                (
-                    guild_id,
-                    user_id,
-                    nickname,
-                    ign,
-                    discord_nickname,
-                    aqw_guild,
-                    in_target_guild
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-
-                ON DUPLICATE KEY UPDATE
-                    nickname = VALUES(nickname),
-                    ign = VALUES(ign),
-                    discord_nickname = VALUES(discord_nickname),
-                    aqw_guild = VALUES(aqw_guild),
-                    in_target_guild = VALUES(in_target_guild),
-                    verified_at = CURRENT_TIMESTAMP
-                """,
-                (
-                    guild_id,
-                    user_id,
-                    nickname,
-                    result["page_ign"],
-                    new_nickname,
-                    result["guild"],
-                    result["in_target_guild"]
-                )
-            )
-
-            if result["in_target_guild"]:
-
-                message = (
-                    f"✅ Verification successful!\n\n"
-                    f"Name: `{nickname}`\n"
-                    f"IGN: `{result['page_ign']}`\n"
-                    f"AQW Guild: `{result['guild']}`\n\n"
-                    f"You received:\n"
-                    f"• {adventure_role.mention}\n"
-                    f"• {member_role.mention}"
-                )
-
-            else:
-
-                guild_text = (
-                    result["guild"]
-                    if result["guild"]
-                    else "No guild"
-                )
-
-                message = (
-                    f"✅ Character verified as AQW player.\n\n"
-                    f"Name: `{nickname}`\n"
-                    f"IGN: `{result['page_ign']}`\n"
-                    f"AQW Guild: `{guild_text}`\n\n"
-                    f"You are not in `{target_guild_name}`, so you received only:\n"
-                    f"• {adventure_role.mention}"
-                )
-
-            if nickname_changed:
-                message += (
-                    f"\n\nNickname changed to:\n"
-                    f"`{new_nickname}`"
-                )
-
-            else:
-                message += (
-                    "\n\n⚠️ I could not change your nickname. "
-                    "Please make sure my bot role is above your role."
-                )
-
-            await interaction.followup.send(
-                message,
-                ephemeral=True
-            )
-
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "❌ I cannot give the role. Move my bot role above the roles I need to assign.",
-                ephemeral=True
-            )
+class NationalitySelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.add_item(NationalitySelect())
 
 
 class VerifyView(discord.ui.View):
@@ -340,7 +410,12 @@ class VerifyView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button
     ):
-        await interaction.response.send_modal(VerifyModal())
+        view = NationalitySelectView()
+        await interaction.response.send_message(
+            "📋 **AQW Character Verification**\nPlease select your nationality from the dropdown below to start verification:",
+            view=view,
+            ephemeral=True
+        )
 
 
 class Verification(commands.Cog):
@@ -479,7 +554,7 @@ class Verification(commands.Cog):
                 f"• All valid AQW players receive {adventure_role.mention if adventure_role else '`Adventure Role`'}\n"
                 f"• Players inside **{aqw_guild_name}** also receive {member_role.mention if member_role else '`Guild Member Role`'}\n\n"
                 "**Nickname Format:**\n"
-                "`nickname ● ign`\n\n"
+                "`nickname ● ign ● Nationality`\n\n"
                 "**Requirement:**\n"
                 "Your AQW character page must be public and accessible."
             ),

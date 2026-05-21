@@ -384,28 +384,37 @@ class CharPage(commands.Cog):
             color=discord.Color.gold()
         )
 
-        embed.add_field(name="Level:", value=data["level"], inline=True)
-        embed.add_field(name="Class:", value=data["class"], inline=True)
-        embed.add_field(name="Weapon:", value=data["weapon"], inline=True)
+        embed.add_field(name="<:XPBoost:1505372494922780753>Level:", value=data["level"], inline=True)
+        embed.add_field(name="<:classicon:1506184256894926898>Class:", value=data["class"], inline=True)
+        embed.add_field(name="<:swordicon:1506182453398601749>Weapon:", value=data["weapon"], inline=True)
 
-        embed.add_field(name="Armor:", value=data["armor"], inline=True)
-        embed.add_field(name="Helm:", value=data["helm"], inline=True)
-        embed.add_field(name="Cape:", value=data["cape"], inline=True)
+        embed.add_field(name="<:armoricon:1506182318765641738>Armor:", value=data["armor"], inline=True)
+        embed.add_field(name="<:helmicon:1506182631887339560>Helm:", value=data["helm"], inline=True)
+        embed.add_field(name="<:capeicon:1506183156024344687>Cape:", value=data["cape"], inline=True)
 
-        embed.add_field(name="Pet:", value=data["pet"], inline=True)
-        embed.add_field(name="Misc:", value=data["misc"], inline=True)
-        embed.add_field(name="Faction:", value=data["faction"], inline=True)
+        embed.add_field(name="<:peticon:1506318442590896230>Pet:", value=data["pet"], inline=True)
+        embed.add_field(name="<:acicon2:1506190761543340072>Misc:", value=data["misc"], inline=True)
+        # Faction emoji mapping
+        faction_emojis = {
+            "chaos": "<:chaosfaction:1506322127819767948>",
+            "good": "<:goodfaction:1506321915114160128>",
+            "evil": "<:evilfaction:1506322000652796104>",
+            "neutral": "<:neutralfaction:1506322065668440106>"
+        }
+        faction_val = data["faction"] or "None"
+        faction_emoji = faction_emojis.get(faction_val.lower(), "")
+        embed.add_field(name=f"{faction_emoji}Faction:", value=faction_val, inline=True)
 
-        embed.add_field(name="Guild:", value=data["guild"], inline=True)
-        embed.add_field(name="Character ID:", value=data["character_id"] or "None", inline=True)
+        embed.add_field(name="<:Member:1505373039267680457>Guild:", value=data["guild"], inline=True)
+        embed.add_field(name="<:charpageicon2:1506324684092866591>Character ID:", value=data["character_id"] or "None", inline=True)
 
         embed.add_field(
-            name="Total Badges:",
+            name="<:charpageicon:1506324498943840366>Total Badges:",
             value=data["total_badges"],
             inline=True
         )
         embed.add_field(
-            name="Treasure Potions:",
+            name="<:treasurepotionicon:1506323420906782912>Treasure Potions:",
             value=data["treasure_points"],
             inline=True
         )

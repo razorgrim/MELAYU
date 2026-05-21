@@ -117,6 +117,31 @@ ALTER TABLE `helper_points`
   ADD KEY `idx_helper_points_guild` (`guild_id`),
   ADD KEY `idx_helper_points_points` (`points`);
 
+CREATE TABLE IF NOT EXISTS `helper_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `officer_role_id` bigint(20) NOT NULL,
+  `helper_role_id` bigint(20) DEFAULT NULL,
+  `review_channel_id` bigint(20) DEFAULT NULL,
+  `review_category_id` bigint(20) DEFAULT NULL,
+  `helper_ticket_counter` int(11) DEFAULT 0,
+  PRIMARY KEY (`guild_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `helper_applications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `guild_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `message_id` bigint(20) DEFAULT NULL,
+  `channel_id` bigint(20) DEFAULT NULL,
+  `status` varchar(32) NOT NULL DEFAULT 'pending',
+  `reviewer_id` bigint(20) DEFAULT NULL,
+  `review_reason` text DEFAULT NULL,
+  `answers` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_helper_application` (`guild_id`,`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `server_settings`
   ADD PRIMARY KEY (`guild_id`);

@@ -237,7 +237,7 @@ class TicketPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Ultra Weeklies", style=discord.ButtonStyle.primary, emoji="🔷")
+    @discord.ui.button(label="Ultra Weeklies", style=discord.ButtonStyle.primary, emoji="🔷", custom_id="ticket_panel_ultra_weeklies")
     async def ultra_weeklies(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             "Select **Ultra Weeklies** activity:",
@@ -245,7 +245,7 @@ class TicketPanelView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="Ultra Dailies 4-Man", style=discord.ButtonStyle.success, emoji="🔶")
+    @discord.ui.button(label="Ultra Dailies 4-Man", style=discord.ButtonStyle.success, emoji="🔶", custom_id="ticket_panel_ultra_dailies_4")
     async def ultra_dailies_4(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             "Select **Ultra Dailies 4-Man** activity:",
@@ -253,7 +253,7 @@ class TicketPanelView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="Daily Quests", style=discord.ButtonStyle.success, emoji="🔷")
+    @discord.ui.button(label="Daily Quests", style=discord.ButtonStyle.success, emoji="🔷", custom_id="ticket_panel_daily_quests")
     async def ultra_dailies_7(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             "Select **Daily Quests** activity:",
@@ -261,7 +261,7 @@ class TicketPanelView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="TempleShrine", style=discord.ButtonStyle.secondary, emoji="⛩️")
+    @discord.ui.button(label="TempleShrine", style=discord.ButtonStyle.secondary, emoji="⛩️", custom_id="ticket_panel_temple_shrine")
     async def temple_shrine(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             "Select **TempleShrine** activity:",
@@ -269,7 +269,7 @@ class TicketPanelView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="GrimChallenge 7-Man", style=discord.ButtonStyle.danger, emoji="👹")
+    @discord.ui.button(label="GrimChallenge 7-Man", style=discord.ButtonStyle.danger, emoji="👹", custom_id="ticket_panel_grim_challenge")
     async def grim_challenge(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
             "Select **GrimChallenge 7-Man** activity:",
@@ -277,7 +277,7 @@ class TicketPanelView(discord.ui.View):
             ephemeral=True
         )
     
-    @discord.ui.button(label="Hard Farm/Others", style=discord.ButtonStyle.secondary, emoji="🛠️")
+    @discord.ui.button(label="Hard Farm/Others", style=discord.ButtonStyle.secondary, emoji="🛠️", custom_id="ticket_panel_hard_farm_others")
     async def hard_farm_others(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(HardFarmModal())
 
@@ -462,6 +462,7 @@ class ActivityMultiSelect(discord.ui.Select):
             embed=embed,
             view=TicketControlView()
         )
+
 
         await interaction.response.send_message(
             f"✅ Combined ticket created: {channel.mention}",
@@ -686,6 +687,7 @@ class HardFarmModal(discord.ui.Modal, title="Hard Farm / Others Ticket"):
             view=TicketControlView()
         )
 
+
         await interaction.response.send_message(
             f"✅ Hard Farm/Others ticket created: {channel.mention}",
             ephemeral=True
@@ -838,6 +840,258 @@ class SetHelperPointsModal(discord.ui.Modal, title="Set Helper Points"):
             f"✅ Custom points set.\n"
             f"Helper <@{helper_id}> will receive **{points} point(s)**."
         )
+
+
+class RemoveHelperSelect(discord.ui.Select):
+    def __init__(self, helpers_data, ticket_data):
+        self.ticket_data = ticket_data
+        options = [
+            discord.SelectOption(
+                label=display_name,
+                value=str(user_id),
+                description=f"Demote and strip Helper role"
+            )
+            for user_id, display_name in helpers_data
+        ]
+        super().__init__(
+            placeholder="Select a helper to demote...",
+            options=options,
+            min_values=1,
+            max_values=1
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        officer_check = await is_officer(interaction.user)
+        if not officer_check:
+            await interaction.response.send_message(
+                "❌ Only Officer can demote helpers.",
+                ephemeral=True
+            )
+            return
+
+        removed_user_id = int(self.values[0])
+        
+        # Get server config to find the helper role ID
+        config = await get_server_config(interaction.guild.id)
+        helper_role_removed = False
+        
+        member = interaction.guild.get_member(removed_user_id)
+        if not member:
+            try:
+                member = await interaction.guild.fetch_member(removed_user_id)
+            except Exception:
+                member = None
+        
+        if config and config.get("helper_role_id"):
+            helper_role = interaction.guild.get_role(config["helper_role_id"])
+            if helper_role and member:
+                try:
+                    await member.remove_roles(helper_role, reason=f"Demoted by Officer {interaction.user} via Officer Control Panel.")
+                    helper_role_removed = True
+                except Exception as e:
+                    print(f"Failed to remove helper role: {e}")
+
+        # Delete from active ticket helpers (purging them from all tickets they've joined)
+        await execute(
+            """
+            DELETE FROM active_ticket_helpers
+            WHERE user_id = %s
+            """,
+            (removed_user_id,)
+        )
+        
+        await execute(
+            """
+            DELETE FROM active_ticket_helper_points
+            WHERE user_id = %s
+            """,
+            (removed_user_id,)
+        )
+
+        await update_ticket_activity(self.ticket_data["id"])
+
+        current_helpers = await get_ticket_helpers(self.ticket_data["id"])
+        helper_count = len(current_helpers)
+
+        # Forcefully remove view permissions for this helper on this ticket channel
+        if member:
+            try:
+                await interaction.channel.set_permissions(member, view_channel=False)
+            except Exception as e:
+                print(f"Failed to set view_channel=False for demoted helper {removed_user_id}: {e}")
+
+        # Edit the ephemeral select message to clear/dismiss the select menu
+        role_status_str = "and had their **Helper role** removed" if helper_role_removed else "(failed to remove Helper role, check role hierarchy)"
+        await interaction.response.edit_message(
+            content=f"✅ Helper <@{removed_user_id}> has been successfully demoted {role_status_str}.",
+            view=None
+        )
+
+        # Send public notice in the channel
+        await interaction.channel.send(
+            f"🚫 <@{removed_user_id}> has been **demoted** and had their Helper role removed by Officer {interaction.user.mention} due to improper conduct/scamming.\n"
+            f"Helpers remaining in this ticket: `{helper_count}/{self.ticket_data['max_helpers']}`"
+        )
+
+
+
+        try:
+            from cogs.helper import get_helper_config, get_helper_log_channel
+            helper_config = await get_helper_config(interaction.guild.id)
+            if helper_config:
+                review_category = interaction.guild.get_channel(helper_config.get("review_category_id"))
+                officer_role = interaction.guild.get_role(helper_config.get("officer_role_id"))
+                if review_category and officer_role:
+                    helper_log_channel = await get_helper_log_channel(interaction.guild, review_category, officer_role)
+                    if helper_log_channel:
+                        demote_log_embed = discord.Embed(
+                            title="🚫 Helper Demoted (Ticket)",
+                            description=(
+                                f"**Officer:** {interaction.user.mention}\n"
+                                f"**Demoted User:** <@{removed_user_id}> ({removed_user_id})\n"
+                                f"**Action:** Helper role removed and user purged from active helper queues.\n"
+                                f"**Ticket Channel:** {interaction.channel.mention}"
+                            ),
+                            color=discord.Color.red()
+                        )
+                        await helper_log_channel.send(embed=demote_log_embed)
+        except Exception as e:
+            print(f"Failed to send helper log from ticket demote: {e}")
+
+
+class RemoveHelperSelectView(discord.ui.View):
+    def __init__(self, helpers_data, ticket_data):
+        super().__init__(timeout=180)
+        self.add_item(RemoveHelperSelect(helpers_data, ticket_data))
+
+
+class OfficerControlView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Demote Helper",
+        style=discord.ButtonStyle.danger,
+        emoji="🚫",
+        custom_id="ticket_officer_remove_helper"
+    )
+    async def remove_helper(self, interaction: discord.Interaction, button: discord.ui.Button):
+        officer_check = await is_officer(interaction.user)
+        if not officer_check:
+            await interaction.response.send_message(
+                "❌ Only Officer can manage helpers.",
+                ephemeral=True
+            )
+            return
+
+        ticket_data = await get_active_ticket_by_channel(interaction.channel.id)
+        if not ticket_data:
+            await interaction.response.send_message(
+                "❌ This ticket is not registered.",
+                ephemeral=True
+            )
+            return
+
+        helper_ids = await get_ticket_helpers(ticket_data["id"])
+        if not helper_ids:
+            await interaction.response.send_message(
+                "❌ No helpers have joined this ticket yet.",
+                ephemeral=True
+            )
+            return
+
+        helpers_data = []
+        for helper_id in helper_ids:
+            member = interaction.guild.get_member(helper_id)
+            if not member:
+                try:
+                    member = await interaction.guild.fetch_member(helper_id)
+                except Exception:
+                    member = None
+            display_name = member.display_name if member else f"User ID {helper_id}"
+            helpers_data.append((helper_id, display_name))
+
+        view = RemoveHelperSelectView(helpers_data, ticket_data)
+        await interaction.response.send_message(
+            "Select a helper to demote (removes their Helper role):",
+            view=view,
+            ephemeral=True
+        )
+
+    @discord.ui.button(
+        label="🔐 Lock / Unlock Helpers",
+        style=discord.ButtonStyle.secondary,
+        custom_id="ticket_officer_toggle_helpers"
+    )
+    async def toggle_helpers(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ticket_data = await get_active_ticket_by_channel(interaction.channel.id)
+        if not ticket_data:
+            await interaction.response.send_message(
+                "❌ This ticket is not registered.",
+                ephemeral=True
+            )
+            return
+
+        officer_check = await is_officer(interaction.user)
+        if not officer_check:
+            await interaction.response.send_message(
+                "❌ Only Officer can toggle helper lock.",
+                ephemeral=True
+            )
+            return
+
+        new_state = not ticket_data["helpers_locked"]
+        await execute(
+            """
+            UPDATE active_tickets
+            SET helpers_locked = %s
+            WHERE id = %s
+            """,
+            (new_state, ticket_data["id"])
+        )
+        await update_ticket_activity(ticket_data["id"])
+
+        if new_state:
+            message = "🔐 Helpers are now **LOCKED**. No one can join."
+        else:
+            message = "🔓 Helpers are now **UNLOCKED**. Others can join."
+
+        await interaction.response.send_message(message)
+
+    @discord.ui.button(
+        label="Set Points",
+        style=discord.ButtonStyle.secondary,
+        emoji="🧮",
+        custom_id="ticket_officer_set_points"
+    )
+    async def set_points(self, interaction: discord.Interaction, button: discord.ui.Button):
+        officer_check = await is_officer(interaction.user)
+        if not officer_check:
+            await interaction.response.send_message(
+                "❌ Only Officer can set manual points.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(SetPointsModal())
+
+    @discord.ui.button(
+        label="Set Helper Points",
+        style=discord.ButtonStyle.secondary,
+        emoji="🎯",
+        custom_id="ticket_officer_set_helper_points"
+    )
+    async def set_helper_points(self, interaction: discord.Interaction, button: discord.ui.Button):
+        officer_check = await is_officer(interaction.user)
+        if not officer_check:
+            await interaction.response.send_message(
+                "❌ Only Officer can set helper points.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(SetHelperPointsModal())
+
 
 class TicketControlView(discord.ui.View):
     def __init__(self):
@@ -1408,14 +1662,19 @@ class TicketControlView(discord.ui.View):
             f"Helpers: {', '.join(helper_mentions)}"
         )
 
-        await interaction.channel.delete(
-            reason="Ticket completed"
-        )     
+        try:
+            await interaction.channel.delete(
+                reason="Ticket completed"
+            )
+        except Exception:
+            pass
 
 class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.add_view(TicketControlView())
+        self.bot.add_view(TicketPanelView())
+        self.bot.add_view(OfficerControlView())
         self.auto_close_inactive_tickets.start()
 
     def cog_unload(self):
@@ -1457,6 +1716,28 @@ class Tickets(commands.Cog):
                     break
 
             if not channel:
+                await execute(
+                    """
+                    DELETE FROM active_ticket_helpers
+                    WHERE ticket_id = %s
+                    """,
+                    (data["id"],)
+                )
+                await execute(
+                    """
+                    DELETE FROM active_ticket_helper_points
+                    WHERE ticket_id = %s
+                    """,
+                    (data["id"],)
+                )
+                await execute(
+                    """
+                    DELETE FROM active_tickets
+                    WHERE id = %s
+                    """,
+                    (data["id"],)
+                )
+                print(f"[TICKETS] Cleaned up orphaned ticket database record for channel ID {data['channel_id']}")
                 continue
 
             # 🔔 WARNING

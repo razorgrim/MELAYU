@@ -664,6 +664,14 @@ class Boosts(commands.Cog):
                 continue
 
             channel = self.bot.get_channel(channel_id)
+            if not channel:
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except Exception:
+                    continue
+
+            if channel is None:
+                continue
 
             verification_config = await fetchone(
                 """
@@ -684,9 +692,6 @@ class Boosts(commands.Cog):
 
                 if role:
                     role_mention = role.mention
-
-            if channel is None:
-                continue
 
             try:
                 if role_mention:
