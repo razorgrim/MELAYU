@@ -109,15 +109,15 @@ class SelfRolesView(discord.ui.View):
                         ephemeral=True
                     )
 
-    @discord.ui.button(label="Chaos", style=discord.ButtonStyle.danger, custom_id="self_role_chaos", emoji="🔴")
+    @discord.ui.button(label="Chaos", style=discord.ButtonStyle.secondary, custom_id="self_role_chaos", emoji="<:chaosfaction:1506322127819767948>")
     async def chaos_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Chaos", is_faction=True)
 
-    @discord.ui.button(label="Good", style=discord.ButtonStyle.primary, custom_id="self_role_good", emoji="🔵")
+    @discord.ui.button(label="Good", style=discord.ButtonStyle.primary, custom_id="self_role_good", emoji="<:goodfaction:1506321915114160128>")
     async def good_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Good", is_faction=True)
 
-    @discord.ui.button(label="Evil", style=discord.ButtonStyle.secondary, custom_id="self_role_evil", emoji="⚫")
+    @discord.ui.button(label="Evil", style=discord.ButtonStyle.danger, custom_id="self_role_evil", emoji="<:evilfaction:1506322000652796104>")
     async def evil_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Evil", is_faction=True)
 
