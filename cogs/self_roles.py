@@ -121,6 +121,14 @@ class SelfRolesView(discord.ui.View):
     async def evil_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Evil", is_faction=True)
 
+    @discord.ui.button(label="Nation", style=discord.ButtonStyle.danger, custom_id="self_role_nation", emoji="<:nulgathicon:1507433966393622619>")
+    async def nation_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_role_toggle(interaction, "Nation", is_faction=False)
+
+    @discord.ui.button(label="Legion", style=discord.ButtonStyle.primary, custom_id="self_role_legion", emoji="<:dageicon:1507434313270951946>")
+    async def legion_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_role_toggle(interaction, "Legion", is_faction=False)
+
     @discord.ui.button(label="Streamer", style=discord.ButtonStyle.success, custom_id="self_role_streamer", emoji="🎥")
     async def streamer_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Streamer", is_faction=False)
@@ -128,6 +136,8 @@ class SelfRolesView(discord.ui.View):
     @discord.ui.button(label="Helper", style=discord.ButtonStyle.success, custom_id="self_role_helper", emoji="🛡️")
     async def helper_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Helper", is_faction=False)
+
+
 
 
 class SelfRoles(commands.Cog):
@@ -163,6 +173,9 @@ class SelfRoles(commands.Cog):
                 "• <:goodfaction:1506321915114160128> **Good**: Stand for honor, order, and justice.\n"
                 "• <:evilfaction:1506322000652796104> **Evil**: Walk in the shadows and seek dark power.\n"
                 "*(Note: Factions are mutually exclusive. Selecting a new one removes your current faction.)*\n\n"
+                "⚔️ **Special Sub-Factions**\n\n"
+                "• <:nulgathicon:1507433966393622619> **Nation**: Archfiend Nulgath's loyal follower.\n"
+                "• <:dageicon:1507434313270951946> **Legion**: Dage the Evil's Undead Legion warrior.\n\n"
                 "💼 **Community Roles**\n\n"
                 "• 🎥 **Streamer**: Get access to streamer channels & ping alerts.\n"
                 "• 🛡️ **Helper**: Join community helpers to support others."
