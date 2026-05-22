@@ -30,15 +30,42 @@
         }
     },
     "2026-05-21": {
-        "completed_tickets": 0,
-        "cancelled_tickets": 1,
-        "total_points_given": 0,
-        "helpers": {},
+        "completed_tickets": 2,
+        "cancelled_tickets": 3,
+        "total_points_given": 28,
+        "helpers": {
+            "696052252863102996": 2,
+            "950808185571250236": 2,
+            "1439948797282095125": 7,
+            "380322705599102987": 5,
+            "807522061546160168": 5
+        },
         "requesters": {
-            "582945457865621513": 0
+            "582945457865621513": 0,
+            "1439948797282095125": 0,
+            "1391044888006496387": 7
         },
         "activities": {
-            "UltraDage": 1
+            "UltraDage": 1,
+            "Flameuserper": 1,
+            "UltraTyndarius": 2,
+            "UltraNulgath": 1
+        }
+    },
+    "2026-05-22": {
+        "completed_tickets": 1,
+        "cancelled_tickets": 0,
+        "total_points_given": 28,
+        "helpers": {
+            "380322705599102987": 7,
+            "696052252863102996": 7,
+            "807522061546160168": 7
+        },
+        "requesters": {
+            "620690959797321736": 7
+        },
+        "activities": {
+            "UltraGramiel": 1
         }
     }
 }

@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 from database import execute, fetchone, fetchall
 from playwright.async_api import async_playwright
@@ -407,7 +407,7 @@ class Boosts(commands.Cog):
                 text="AdventureQuest Worlds • Artix Calendar"
             )
 
-            embed.timestamp = datetime.utcnow()
+            embed.timestamp = datetime.now(timezone.utc)
 
             await interaction.followup.send(embed=embed)
 
@@ -477,7 +477,7 @@ class Boosts(commands.Cog):
                 text="AdventureQuest Worlds • Artix Calendar"
             )
 
-            embed.timestamp = datetime.utcnow()
+            embed.timestamp = datetime.now(timezone.utc)
 
             await interaction.followup.send(embed=embed)
 
@@ -596,10 +596,10 @@ class Boosts(commands.Cog):
 
         now = datetime.now()
 
-        print(f"[BOOST LOOP] {now}")
-        
         if now.hour != 12 or now.minute != 0:
             return
+
+        print(f"[BOOST LOOP] Sending daily boost reminder at {now}")
 
         today_date = now.strftime("%Y-%m-%d")
         active_events = await self.get_cached_active_events()
@@ -644,7 +644,7 @@ class Boosts(commands.Cog):
             text="AdventureQuest Worlds • Artix Calendar"
         )
 
-        embed.timestamp = datetime.utcnow()
+        embed.timestamp = datetime.now(timezone.utc)
 
         settings = await fetchall(
             """

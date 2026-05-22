@@ -390,7 +390,7 @@ class ApplyHelperPart2View(discord.ui.View):
         self.part1_answers = part1_answers
         self.bot = bot
 
-    @discord.ui.button(label="Fill Part 2", style=discord.ButtonStyle.primary, custom_id="apply_as_helper_part2_btn")
+    @discord.ui.button(label="Fill Part 2", style=discord.ButtonStyle.primary)
     async def fill_part2_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
             HelperApplicationModal2(self.applicant_id, self.part1_answers, self.bot)
@@ -739,21 +739,23 @@ class DemoteUserSelect(discord.ui.UserSelect):
                 except Exception as e:
                     print(f"Failed to remove helper role: {e}")
 
-        # Delete from active ticket helpers (purging them from all tickets they've joined)
+        # Delete from active ticket helpers in this guild only
         await execute(
             """
             DELETE FROM active_ticket_helpers
             WHERE user_id = %s
+            AND ticket_id IN (SELECT id FROM active_tickets WHERE guild_id = %s)
             """,
-            (target_member.id,)
+            (target_member.id, interaction.guild.id)
         )
         
         await execute(
             """
             DELETE FROM active_ticket_helper_points
             WHERE user_id = %s
+            AND ticket_id IN (SELECT id FROM active_tickets WHERE guild_id = %s)
             """,
-            (target_member.id,)
+            (target_member.id, interaction.guild.id)
         )
 
         role_status_str = "and had their **Helper role** removed" if helper_role_removed else "(failed to remove Helper role, check role hierarchy/permissions)"

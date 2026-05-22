@@ -8,6 +8,21 @@ from discord.ext import tasks
 from datetime import datetime
 from database import execute, fetchone, fetchall
 
+
+async def cleanup_ticket(ticket_id):
+    await execute(
+        "DELETE FROM active_ticket_helpers WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    await execute(
+        "DELETE FROM active_ticket_helper_points WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    await execute(
+        "DELETE FROM active_tickets WHERE id = %s",
+        (ticket_id,)
+    )
+
 INACTIVE_TIMEOUT_SECONDS = 7200  # 2 hours
 WARNING_BEFORE_CLOSE = 1800  # 30 minutes before (in seconds)
 DAILY_STATS_FILE = "data/daily_stats.json"
@@ -340,7 +355,6 @@ class ActivityMultiSelect(discord.ui.Select):
             )
             return
 
-        import random
 
         existing_rooms = await fetchall(
             """
@@ -786,9 +800,16 @@ class SetHelperPointsModal(discord.ui.Modal, title="Set Helper Points"):
             )
             return
 
-        helper_id = int(
-            extract_user_id(self.helper.value)
-        )
+        try:
+            helper_id = int(
+                extract_user_id(self.helper.value)
+            )
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid user. Please enter a valid @mention or Discord ID.",
+                ephemeral=True
+            )
+            return
 
         ticket_data = await get_active_ticket_by_channel(
             interaction.channel.id
@@ -891,21 +912,23 @@ class RemoveHelperSelect(discord.ui.Select):
                 except Exception as e:
                     print(f"Failed to remove helper role: {e}")
 
-        # Delete from active ticket helpers (purging them from all tickets they've joined)
+        # Delete from active ticket helpers in this guild only
         await execute(
             """
             DELETE FROM active_ticket_helpers
             WHERE user_id = %s
+            AND ticket_id IN (SELECT id FROM active_tickets WHERE guild_id = %s)
             """,
-            (removed_user_id,)
+            (removed_user_id, interaction.guild.id)
         )
         
         await execute(
             """
             DELETE FROM active_ticket_helper_points
             WHERE user_id = %s
+            AND ticket_id IN (SELECT id FROM active_tickets WHERE guild_id = %s)
             """,
-            (removed_user_id,)
+            (removed_user_id, interaction.guild.id)
         )
 
         await update_ticket_activity(self.ticket_data["id"])
@@ -1444,29 +1467,7 @@ class TicketControlView(discord.ui.View):
                 discord.Color.red()
             )
 
-            await execute(
-                """
-                DELETE FROM active_ticket_helpers
-                WHERE ticket_id = %s
-                """,
-                (ticket_data["id"],)
-            )
-
-            await execute(
-                """
-                DELETE FROM active_ticket_helper_points
-                WHERE ticket_id = %s
-                """,
-                (ticket_data["id"],)
-            )
-
-            await execute(
-                """
-                DELETE FROM active_tickets
-                WHERE id = %s
-                """,
-                (ticket_data["id"],)
-            )
+            await cleanup_ticket(ticket_data["id"])
 
             update_daily_stats(
                 status="cancelled",
@@ -1610,29 +1611,7 @@ class TicketControlView(discord.ui.View):
         )
 
         # Cleanup
-        await execute(
-            """
-            DELETE FROM active_ticket_helpers
-            WHERE ticket_id = %s
-            """,
-            (ticket_data["id"],)
-        )
-
-        await execute(
-            """
-            DELETE FROM active_ticket_helper_points
-            WHERE ticket_id = %s
-            """,
-            (ticket_data["id"],)
-        )
-
-        await execute(
-            """
-            DELETE FROM active_tickets
-            WHERE id = %s
-            """,
-            (ticket_data["id"],)
-        )
+        await cleanup_ticket(ticket_data["id"])
 
         update_daily_stats(
             status="completed",
@@ -1680,6 +1659,14 @@ class Tickets(commands.Cog):
     def cog_unload(self):
         self.auto_close_inactive_tickets.cancel()
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+        ticket = await get_active_ticket_by_channel(message.channel.id)
+        if ticket:
+            await update_ticket_activity(ticket["id"])
+
     @tasks.loop(minutes=5)
     async def auto_close_inactive_tickets(self):
         await self.bot.wait_until_ready()
@@ -1716,27 +1703,7 @@ class Tickets(commands.Cog):
                     break
 
             if not channel:
-                await execute(
-                    """
-                    DELETE FROM active_ticket_helpers
-                    WHERE ticket_id = %s
-                    """,
-                    (data["id"],)
-                )
-                await execute(
-                    """
-                    DELETE FROM active_ticket_helper_points
-                    WHERE ticket_id = %s
-                    """,
-                    (data["id"],)
-                )
-                await execute(
-                    """
-                    DELETE FROM active_tickets
-                    WHERE id = %s
-                    """,
-                    (data["id"],)
-                )
+                await cleanup_ticket(data["id"])
                 print(f"[TICKETS] Cleaned up orphaned ticket database record for channel ID {data['channel_id']}")
                 continue
 
@@ -1780,29 +1747,7 @@ class Tickets(commands.Cog):
                 except:
                     pass
 
-                await execute(
-                    """
-                    DELETE FROM active_ticket_helpers
-                    WHERE ticket_id = %s
-                    """,
-                    (data["id"],)
-                )
-
-                await execute(
-                    """
-                    DELETE FROM active_ticket_helper_points
-                    WHERE ticket_id = %s
-                    """,
-                    (data["id"],)
-                )
-
-                await execute(
-                    """
-                    DELETE FROM active_tickets
-                    WHERE id = %s
-                    """,
-                    (data["id"],)
-                )
+                await cleanup_ticket(data["id"])
 
                 update_daily_stats(
                     status="cancelled",

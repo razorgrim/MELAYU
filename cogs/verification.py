@@ -1,5 +1,4 @@
 import time
-import requests
 import discord
 import aiohttp
 from bs4 import BeautifulSoup
@@ -18,7 +17,7 @@ async def check_aqw_character(ign: str, target_guild_name: str):
 
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=10) as response:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status != 200:
                     return {
                         "found": False,

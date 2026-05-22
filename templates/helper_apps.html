@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Helper Applications{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>Helper Applications</h2>
+    <p>Review history of all helper applications</p>
+</div>
+
+<div class="filter-bar">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="pending">⏳ Pending</button>
+    <button class="filter-btn" data-filter="accepted">✅ Accepted</button>
+    <button class="filter-btn" data-filter="rejected">❌ Rejected</button>
+</div>
+
+<div class="table-container">
+    <div class="table-header">
+        <h3>{{ apps|length }} application{{ 's' if apps|length != 1 else '' }}</h3>
+        <input type="text" id="table-search" class="search-input" placeholder="Search applications...">
+    </div>
+    <table id="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>User ID</th>
+                <th>Submitted</th>
+                <th>Reviewer</th>
+                <th>Status</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in apps %}
+            <tr>
+                <td style="font-weight: 600; color: var(--text-primary);">#{{ app.id }}</td>
+                <td style="font-family: monospace; font-size: 0.8rem;">{{ app.user_id }}</td>
+                <td>{{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else '—' }}</td>
+                <td>
+                    {% if app.reviewer_id %}
+                    <span style="font-family: monospace; font-size: 0.8rem;">{{ app.reviewer_id }}</span>
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if app.status == 'pending' %}
+                    <span class="badge badge-warning">Pending</span>
+                    {% elif app.status == 'accepted' %}
+                    <span class="badge badge-success">Accepted</span>
+                    {% else %}
+                    <span class="badge badge-danger">Rejected</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button class="expand-btn" onclick="toggleExpand('app-{{ app.id }}')">View</button>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="6" style="padding: 0; border: none;">
+                    <div id="app-{{ app.id }}" class="expandable-content">
+                        {% if app.answers_parsed %}
+                        {% for key, val in app.answers_parsed.items() %}
+                        <div class="answer-block">
+                            <div class="question">{{ key }}</div>
+                            <div class="answer">{{ val }}</div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                        {% if app.review_reason %}
+                        <div class="answer-block" style="border-color: var(--warning);">
+                            <div class="question">Review Reason</div>
+                            <div class="answer">{{ app.review_reason }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not apps %}
+            <tr><td colspan="6" class="empty-state">No helper applications found.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Filter by status column (index 4)
+    initFilterButtons('.filter-bar', 'data-table', 4);
+</script>
+{% endblock %}

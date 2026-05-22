@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h2>Bot Settings</h2>
+    <p>Configure verification, tickets, helpers, and boost notifications</p>
+</div>
+
+<!-- Verification Config -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <span class="icon">✅</span>
+        <h3>Verification Config</h3>
+    </div>
+    <form id="form-verification" onsubmit="event.preventDefault();">
+        <div class="settings-body">
+            <div class="form-group">
+                <label>AQW Guild Name</label>
+                <input type="text" name="aqw_guild_name" value="{{ verification.aqw_guild_name or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Adventure Role ID</label>
+                <input type="text" name="adventure_role_id" value="{{ verification.adventure_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Member Role ID</label>
+                <input type="text" name="member_role_id" value="{{ verification.member_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Embed Image URL</label>
+                <input type="text" name="image_url" value="{{ verification.image_url or '' }}">
+            </div>
+        </div>
+        <div class="settings-footer">
+            <button type="button" class="btn btn-primary" onclick="saveSettings('form-verification', '/api/settings/verification')">Save Verification</button>
+        </div>
+    </form>
+</div>
+
+<!-- Ticket Config -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <span class="icon">🎟️</span>
+        <h3>Ticket Config</h3>
+    </div>
+    <form id="form-ticket" onsubmit="event.preventDefault();">
+        <div class="settings-body">
+            <div class="form-group">
+                <label>Officer Role ID</label>
+                <input type="text" name="officer_role_id" value="{{ ticket.officer_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Helper Role ID</label>
+                <input type="text" name="helper_role_id" value="{{ ticket.helper_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Bonus Role ID</label>
+                <input type="text" name="bonus_role_id" value="{{ ticket.bonus_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Ticket Category ID</label>
+                <input type="text" name="ticket_category_id" value="{{ ticket.ticket_category_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Ticket Log Channel ID</label>
+                <input type="text" name="ticket_log_channel_id" value="{{ ticket.ticket_log_channel_id or '' }}">
+            </div>
+        </div>
+        <div class="settings-footer">
+            <button type="button" class="btn btn-primary" onclick="saveSettings('form-ticket', '/api/settings/ticket')">Save Ticket</button>
+        </div>
+    </form>
+</div>
+
+<!-- Helper Config -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <span class="icon">🛡️</span>
+        <h3>Helper Config</h3>
+    </div>
+    <form id="form-helper" onsubmit="event.preventDefault();">
+        <div class="settings-body">
+            <div class="form-group">
+                <label>Officer Role ID</label>
+                <input type="text" name="officer_role_id" value="{{ helper.officer_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Helper Role ID</label>
+                <input type="text" name="helper_role_id" value="{{ helper.helper_role_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Review Category ID</label>
+                <input type="text" name="review_category_id" value="{{ helper.review_category_id or '' }}">
+            </div>
+        </div>
+        <div class="settings-footer">
+            <button type="button" class="btn btn-primary" onclick="saveSettings('form-helper', '/api/settings/helper')">Save Helper</button>
+        </div>
+    </form>
+</div>
+
+<!-- Boost Config -->
+<div class="settings-section">
+    <div class="settings-section-header">
+        <span class="icon">📢</span>
+        <h3>Boost Notifications</h3>
+    </div>
+    <form id="form-boost" onsubmit="event.preventDefault();">
+        <div class="settings-body">
+            <div class="form-group">
+                <label>Boost Channel ID</label>
+                <input type="text" name="boost_channel_id" value="{{ boost.boost_channel_id or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Notifications Enabled</label>
+                <select name="boost_notify_enabled">
+                    <option value="1" {% if boost.boost_notify_enabled %}selected{% endif %}>Enabled</option>
+                    <option value="0" {% if not boost.boost_notify_enabled %}selected{% endif %}>Disabled</option>
+                </select>
+            </div>
+        </div>
+        <div class="settings-footer">
+            <button type="button" class="btn btn-primary" onclick="saveSettings('form-boost', '/api/settings/boost')">Save Boost</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

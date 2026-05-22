@@ -20,12 +20,15 @@ class CharPage(commands.Cog):
             "User-Agent": "Mozilla/5.0"
         }
 
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=20) as response:
-                if response.status != 200:
-                    return None, url
+        try:
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=20)) as response:
+                    if response.status != 200:
+                        return None, url
 
-                html = await response.text()
+                    html = await response.text()
+        except Exception:
+            return None, url
 
         return html, url
     

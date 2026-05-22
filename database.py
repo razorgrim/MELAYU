@@ -25,7 +25,8 @@ async def connect_db():
         db=DB_CONFIG["db"],
         autocommit=True,
         minsize=1,
-        maxsize=10
+        maxsize=10,
+        pool_recycle=3600
     )
 
     print("[DATABASE] Connected to MySQL")
