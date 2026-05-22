@@ -167,4 +167,34 @@ ALTER TABLE `active_tickets`
 
 ALTER TABLE `verified_users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+CREATE TABLE IF NOT EXISTS `tournament_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `channel_id` bigint(20) DEFAULT NULL,
+  `message_id` bigint(20) DEFAULT NULL,
+  `player_limit` int(11) DEFAULT 8,
+  `status` varchar(32) NOT NULL DEFAULT 'registration',
+  PRIMARY KEY (`guild_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `tournament_players` (
+  `guild_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `ign` varchar(100) NOT NULL,
+  `seed` int(11) NOT NULL,
+  PRIMARY KEY (`guild_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `tournament_matches` (
+  `guild_id` bigint(20) NOT NULL,
+  `match_id` int(11) NOT NULL,
+  `round` int(11) NOT NULL,
+  `player1_id` bigint(20) DEFAULT NULL,
+  `player2_id` bigint(20) DEFAULT NULL,
+  `player1_score` int(11) DEFAULT 0,
+  `player2_score` int(11) DEFAULT 0,
+  `winner_id` bigint(20) DEFAULT NULL,
+  PRIMARY KEY (`guild_id`, `match_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;
