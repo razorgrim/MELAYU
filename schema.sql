@@ -98,7 +98,6 @@ CREATE TABLE IF NOT EXISTS `verified_users` (
 
 
 ALTER TABLE `active_tickets`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `channel_id` (`channel_id`),
   ADD UNIQUE KEY `unique_user_ticket` (`guild_id`,`requester_id`),
   ADD KEY `idx_active_tickets_channel` (`channel_id`),
