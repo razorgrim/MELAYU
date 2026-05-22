@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS `server_settings` (
   `boost_channel_id` bigint(20) DEFAULT NULL,
   `boost_notify_enabled` tinyint(1) DEFAULT 0,
   `boost_last_sent_date` date DEFAULT NULL,
+  `boost_weekly_last_sent_date` date DEFAULT NULL,
   `ticket_category_id` bigint(20) DEFAULT NULL,
   `ticket_log_channel_id` bigint(20) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),

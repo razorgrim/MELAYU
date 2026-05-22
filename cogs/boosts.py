@@ -72,9 +72,11 @@ class Boosts(commands.Cog):
         self.week_cache_timestamp = None
 
         self.daily_boost_reminder.start()
+        self.weekly_boost_reminder.start()
 
     def cog_unload(self):
         self.daily_boost_reminder.cancel()
+        self.weekly_boost_reminder.cancel()
 
     def cache_is_valid(self, timestamp):
         if timestamp is None:
@@ -716,6 +718,143 @@ class Boosts(commands.Cog):
 
             except Exception as e:
                 print(f"[REMINDER ERROR] {e}")
+
+    @tasks.loop(minutes=1)
+    async def weekly_boost_reminder(self):
+        await self.bot.wait_until_ready()
+
+        now = datetime.now()
+
+        # Check if today is Monday morning at 09:00 AM
+        if now.weekday() != 0 or now.hour != 9 or now.minute != 0:
+            return
+
+        print(f"[BOOST LOOP] Sending weekly boost announcement at {now}")
+
+        today_date = now.strftime("%Y-%m-%d")
+        weekly_events = await self.get_cached_week_events()
+
+        if not weekly_events:
+            return
+
+        embed = discord.Embed(
+            title="📢 AQW Upcoming Boost Schedule",
+            description=(
+                "Here are the upcoming AQW boosts "
+                "and events for the next 7 days."
+            ),
+            color=discord.Color.gold()
+        )
+
+        embed.set_thumbnail(
+            url="https://www.aq.com/images/aqw-icon.png"
+        )
+
+        embed.set_image(url="https://i.imgur.com/vBeUbYo.jpeg")
+
+        has_events = False
+
+        for day in weekly_events:
+            events = weekly_events.get(day, [])
+
+            if not events:
+                continue
+
+            has_events = True
+
+            value = "\n".join(
+                [f"{get_boost_emoji(event)} {event}" for event in events]
+            )
+
+            embed.add_field(
+                name=f"<:Member:1505373039267680457>  {day}",
+                value=value,
+                inline=False
+            )
+
+        if not has_events:
+            embed.add_field(
+                name="No Upcoming Events Detected",
+                value="No boosts/events were detected for the next 7 days.",
+                inline=False
+            )
+
+        embed.set_footer(
+            text="AdventureQuest Worlds • Artix Calendar"
+        )
+
+        embed.timestamp = datetime.now(timezone.utc)
+
+        settings = await fetchall(
+            """
+            SELECT * FROM server_settings
+            WHERE boost_notify_enabled = TRUE
+            """
+        )
+
+        for config in settings:
+            
+            if config.get("boost_weekly_last_sent_date") and str(config["boost_weekly_last_sent_date"]) == today_date:
+                continue
+
+            channel_id = config["boost_channel_id"]
+
+            if not channel_id:
+                continue
+
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except Exception:
+                    continue
+
+            if channel is None:
+                continue
+
+            verification_config = await fetchone(
+                """
+                SELECT adventure_role_id
+                FROM verification_config
+                WHERE guild_id = %s
+                """,
+                (config["guild_id"],)
+            )
+
+            role_mention = ""
+
+            if verification_config:
+
+                role = channel.guild.get_role(
+                    verification_config["adventure_role_id"]
+                )
+
+                if role:
+                    role_mention = role.mention
+
+            try:
+                if role_mention:
+                    await channel.send(
+                        content=f"{role_mention} AQW Weekly Boost Schedule is out!",
+                        embed=embed
+                    )
+                else:
+                    await channel.send(embed=embed)
+
+                await execute(
+                    """
+                    UPDATE server_settings
+                    SET boost_weekly_last_sent_date = %s
+                    WHERE guild_id = %s
+                    """,
+                    (
+                        today_date,
+                        config["guild_id"]
+                    )
+                )
+
+            except Exception as e:
+                print(f"[WEEKLY REMINDER ERROR] {e}")
 
 
 async def setup(bot):

@@ -959,25 +959,17 @@ class RemoveHelperSelect(discord.ui.Select):
 
 
         try:
-            from cogs.helper import get_helper_config, get_helper_log_channel
-            helper_config = await get_helper_config(interaction.guild.id)
-            if helper_config:
-                review_category = interaction.guild.get_channel(helper_config.get("review_category_id"))
-                officer_role = interaction.guild.get_role(helper_config.get("officer_role_id"))
-                if review_category and officer_role:
-                    helper_log_channel = await get_helper_log_channel(interaction.guild, review_category, officer_role)
-                    if helper_log_channel:
-                        demote_log_embed = discord.Embed(
-                            title="🚫 Helper Demoted (Ticket)",
-                            description=(
-                                f"**Officer:** {interaction.user.mention}\n"
-                                f"**Demoted User:** <@{removed_user_id}> ({removed_user_id})\n"
-                                f"**Action:** Helper role removed and user purged from active helper queues.\n"
-                                f"**Ticket Channel:** {interaction.channel.mention}"
-                            ),
-                            color=discord.Color.red()
-                        )
-                        await helper_log_channel.send(embed=demote_log_embed)
+            await send_ticket_log(
+                interaction.guild,
+                "🚫 Helper Demoted (Ticket)",
+                (
+                    f"**Officer:** {interaction.user.mention}\n"
+                    f"**Demoted User:** <@{removed_user_id}> ({removed_user_id})\n"
+                    f"**Action:** Helper role removed and user purged from active helper queues.\n"
+                    f"**Ticket Channel:** {interaction.channel.mention}"
+                ),
+                discord.Color.red()
+            )
         except Exception as e:
             print(f"Failed to send helper log from ticket demote: {e}")
 
@@ -1662,6 +1654,8 @@ class Tickets(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
+            return
+        if not hasattr(message.channel, "name") or not message.channel.name.startswith("ticket-"):
             return
         ticket = await get_active_ticket_by_channel(message.channel.id)
         if ticket:

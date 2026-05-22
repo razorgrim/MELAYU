@@ -245,7 +245,7 @@ class CharPage(commands.Cog):
     def find_linked_value_raw(self, html, label):
         pattern = (
             rf"<label>{re.escape(label)}:</label>\s*"
-            rf"<a[^>]*href='(.*?)'>"
+            rf"<a[^>]*href=['\"](.*?)['\"]>"
             rf"(.*?)</a>"
         )
 
