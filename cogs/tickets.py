@@ -68,7 +68,7 @@ ACTIVITIES = {
         "Deimos": 1,
         "Frozenlair": 1,
         "Sevencircleswar": 1,
-        "Flameuserper": 2,
+        "Flameusurper": 2,
     },
     "TempleShrine": {
         "TempleShrine Mid": 5,
@@ -83,7 +83,7 @@ ACTIVITIES = {
 
 def get_max_helpers(category, selected_activities=None):
     if category == "Daily Quests":
-        if selected_activities == ["Flameuserper"]:
+        if selected_activities == ["Flameusurper"]:
             return 1
         return 6
 
