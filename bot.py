@@ -18,7 +18,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def load_cogs():
     cogs = [
         "cogs.verification",
-        "cogs.helper",
+        "cogs.self_roles",
         "cogs.tickets",
         "cogs.boosts",
         "cogs.charpage",
