@@ -322,6 +322,20 @@ class CharPage(commands.Cog):
         data["faction"] = self.find_value(soup, "Faction")
         data["guild"] = self.find_value(soup, "Guild")
 
+        # Extract Title
+        title_val = "None"
+        h1 = soup.find("h1")
+        if h1:
+            h4 = h1.find_next_sibling("h4")
+            if not h4:
+                parent = h1.parent
+                if parent:
+                    h4 = parent.find("h4")
+            if h4:
+                em = h4.find("em")
+                title_val = self.clean_text(em.get_text() if em else h4.get_text())
+        data["title"] = title_val
+
         data["character_id"] = self.find_ccid(html, soup)
 
         # Linked item fields
@@ -387,6 +401,7 @@ class CharPage(commands.Cog):
             color=discord.Color.gold()
         )
 
+        embed.add_field(name="🏆 Title:", value=data["title"], inline=True)
         embed.add_field(name="<:XPBoost:1505372494922780753>Level:", value=data["level"], inline=True)
         embed.add_field(name="<:classicon:1506184256894926898>Class:", value=data["class"], inline=True)
         embed.add_field(name="<:swordicon:1506182453398601749>Weapon:", value=data["weapon"], inline=True)
