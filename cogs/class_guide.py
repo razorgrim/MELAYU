@@ -73,6 +73,30 @@ class ClassGuide(commands.Cog):
         print("[DATABASE] Verified class_guides SQL table schema")
 
     @staticmethod
+    def format_enchant_details(raw_str) -> str:
+        if not raw_str or raw_str.lower() in ["n/a", "none"]:
+            return "*No configuration set.*"
+        
+        # Split by comma or slash
+        parts = [p.strip() for p in raw_str.replace("/", ",").split(",")]
+        
+        # Ensure we have precisely 4 items (Helm, Class, Cape, Weapon)
+        while len(parts) < 4:
+            parts.append("N/A")
+            
+        helm = parts[0]
+        cls = parts[1]
+        cape = parts[2]
+        weapon = parts[3]
+        
+        return (
+            f"<:helmicon:1506182631887339560> **Helm:** `{helm}`\n"
+            f"<:classicon:1506184256894926898> **Class:** `{cls}`\n"
+            f"<:capeicon:1506183156024344687> **Cape:** `{cape}`\n"
+            f"<:swordicon:1506182453398601749> **Weapon:** `{weapon}`"
+        )
+
+    @staticmethod
     def generate_guide_embed(row, guild) -> discord.Embed:
         class_name = row["class_name"]
         
@@ -87,12 +111,21 @@ class ClassGuide(commands.Cog):
         embed.add_field(name="📝 Note / Description", value=f"```\n{note}\n```", inline=False)
         
         # Enchantments
-        enchant_text = (
-            f"1. **Non-Forge Setup:**\n└─ `{row['enchant_non_forge'] or 'N/A'}`\n\n"
-            f"2. **Solo Setup:**\n└─ `{row['enchant_solo'] or 'N/A'}`\n\n"
-            f"3. **Ultra Boss Setup:**\n└─ `{row['enchant_ultra'] or 'N/A'}`"
+        embed.add_field(
+            name="🛡️ 1. Non-Forge Setup",
+            value=ClassGuide.format_enchant_details(row["enchant_non_forge"]),
+            inline=False
         )
-        embed.add_field(name="🛡️ Enchantments Configuration", value=enchant_text, inline=False)
+        embed.add_field(
+            name="🛡️ 2. Solo Setup",
+            value=ClassGuide.format_enchant_details(row["enchant_solo"]),
+            inline=False
+        )
+        embed.add_field(
+            name="🛡️ 3. Ultra Boss Setup",
+            value=ClassGuide.format_enchant_details(row["enchant_ultra"]),
+            inline=False
+        )
         
         # Potion
         potion = row["potion"] or "N/A"
@@ -118,9 +151,9 @@ class ClassGuide(commands.Cog):
     @app_commands.describe(
         class_name="AQW Class Name (e.g., ArchPaladin, Legion DoomKnight)",
         note="General notes or class description (Leave blank to keep current)",
-        enchant_non_forge="Default non-forge enhancement configuration (Leave blank to keep current)",
-        enchant_solo="Recommended solo enhancement (Leave blank to keep current)",
-        enchant_ultra="Recommended ultra enhancement (Leave blank to keep current)",
+        enchant_non_forge="Format: Helm, Class, Cape, Weapon (e.g., Vim, Luck, Valiance, Spiral)",
+        enchant_solo="Format: Helm, Class, Cape, Weapon (e.g., Vim, Luck, Valiance, Spiral)",
+        enchant_ultra="Format: Helm, Class, Cape, Weapon (e.g., Vim, Luck, Valiance, Spiral)",
         potion="Best potions to use (Leave blank to keep current)",
         combo="Combos or rotation sequence (Leave blank to keep current)"
     )
