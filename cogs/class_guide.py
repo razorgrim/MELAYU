@@ -70,7 +70,18 @@ class ClassGuide(commands.Cog):
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """
         )
-        print("[DATABASE] Verified class_guides SQL table schema")
+        # Auto-create the class_config SQL table on startup for persistent message syncing
+        await execute(
+            """
+            CREATE TABLE IF NOT EXISTS `class_config` (
+                `guild_id` bigint(20) NOT NULL,
+                `panel_channel_id` bigint(20) DEFAULT NULL,
+                `panel_message_id` bigint(20) DEFAULT NULL,
+                PRIMARY KEY (`guild_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+        )
+        print("[DATABASE] Verified class_guides and class_config SQL table schemas")
 
     @staticmethod
     def format_enchant_details(raw_str) -> str:
@@ -141,6 +152,38 @@ class ClassGuide(commands.Cog):
             
         embed.set_footer(text="AQW MELAYU Library • Select dropdown or slash command to search")
         return embed
+
+    async def update_persistent_panel(self, guild_id):
+        # 1. Fetch config from MySQL
+        config = await fetchone(
+            "SELECT panel_channel_id, panel_message_id FROM class_config WHERE guild_id = %s",
+            (guild_id,)
+        )
+        if not config or not config["panel_channel_id"] or not config["panel_message_id"]:
+            return # No active panel configured in database
+            
+        # 2. Fetch all classes
+        classes = await fetchall(
+            "SELECT class_name FROM class_guides WHERE guild_id = %s ORDER BY class_name ASC",
+            (guild_id,)
+        )
+        
+        # 3. Retrieve channel & message in-place
+        try:
+            channel = self.bot.get_channel(config["panel_channel_id"])
+            if not channel:
+                channel = await self.bot.fetch_channel(config["panel_channel_id"])
+                
+            message = await channel.fetch_message(config["panel_message_id"])
+            
+            # Recreate view with the new list of classes
+            view = ClassDropdownView(classes)
+            
+            # Edit the existing message in-place with the updated view dropdown
+            await message.edit(view=view)
+            print(f"[CLASS PANEL] Automatically updated persistent dropdown list for guild {guild_id}")
+        except Exception as e:
+            print(f"[CLASS PANEL ERROR] Failed to auto-update panel for guild {guild_id}: {e}")
 
     # --- SLASH COMMANDS ---
 
@@ -243,6 +286,9 @@ class ClassGuide(commands.Cog):
                 final_combo
             )
         )
+
+        # 4. Automatically update persistent in-place dropdown select panel (if it exists)
+        await self.update_persistent_panel(guild_id)
 
         action_msg = "updated/edited" if is_update else "newly registered"
         await interaction.response.send_message(
@@ -353,10 +399,23 @@ class ClassGuide(commands.Cog):
             embed.set_footer(text=f"{interaction.guild.name} Library Panel", icon_url=interaction.guild.icon.url)
 
         view = ClassDropdownView(classes)
-        await target_channel.send(embed=embed, view=view)
+        message = await target_channel.send(embed=embed, view=view)
+        
+        # 4. Save channel and message references in MySQL for auto-updating
+        await execute(
+            """
+            INSERT INTO class_config (guild_id, panel_channel_id, panel_message_id)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                panel_channel_id = VALUES(panel_channel_id),
+                panel_message_id = VALUES(panel_message_id)
+            """,
+            (guild_id, target_channel.id, message.id)
+        )
         
         await interaction.response.send_message(
-            f"✅ Class Setup Library panel has been posted in {target_channel.mention}!",
+            f"✅ Class Setup Library panel has been posted in {target_channel.mention}!\n"
+            f"This panel will automatically self-update in real-time whenever you add or edit class guides.",
             ephemeral=True
         )
 

@@ -209,4 +209,11 @@ CREATE TABLE IF NOT EXISTS `class_guides` (
   PRIMARY KEY (`guild_id`, `class_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `class_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `panel_channel_id` bigint(20) DEFAULT NULL,
+  `panel_message_id` bigint(20) DEFAULT NULL,
+  PRIMARY KEY (`guild_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;
