@@ -35,6 +35,7 @@ systemctl start mariadb
 echo "Creating database..."
 
 mysql < schema.sql
+mysql < classes.sql
 
 echo "Creating data folder..."
 
