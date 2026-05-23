@@ -2,19 +2,31 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from database import execute, fetchone, fetchall
+import re
 
 class ClassDropdown(discord.ui.Select):
-    def __init__(self, classes):
+    def __init__(self, classes, page=0, total_pages=1):
         options = [
             discord.SelectOption(
                 label=cls["class_name"],
                 description=f"View guide for {cls['class_name']}",
                 emoji="⚔️"
             )
-            for cls in classes[:25] # Select menus can have max 25 options
+            for cls in classes[:25]
         ]
+        
+        if not options:
+            options = [
+                discord.SelectOption(
+                    label="No classes found",
+                    description="Please add class guides first",
+                    emoji="❌"
+                )
+            ]
+            
+        placeholder = f"Choose a class (Page {page + 1}/{total_pages})...."
         super().__init__(
-            placeholder="Choose a class guide to view...",
+            placeholder=placeholder,
             min_values=1,
             max_values=1,
             options=options,
@@ -22,6 +34,10 @@ class ClassDropdown(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "No classes found":
+            await interaction.response.send_message("❌ No class guide configuration selected.", ephemeral=True)
+            return
+
         await interaction.response.defer(ephemeral=True)
         class_name = self.values[0]
         
@@ -43,10 +59,56 @@ class ClassDropdown(discord.ui.Select):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
+class ClassNavButton(discord.ui.Button):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    async def callback(self, interaction: discord.Interaction):
+        current_page = 0
+        try:
+            for row in interaction.message.components:
+                for child in row.children:
+                    if child.custom_id == "class_guide_select":
+                        match = re.search(r"Page (\d+)/(\d+)", child.placeholder)
+                        if match:
+                            current_page = int(match.group(1)) - 1
+        except Exception:
+            pass
+
+        guild_id = interaction.guild.id
+        all_classes = await fetchall(
+            "SELECT class_name FROM class_guides WHERE guild_id = %s ORDER BY class_name ASC",
+            (guild_id,)
+        )
+
+        if not all_classes:
+            await interaction.response.send_message("❌ Error: No class guides found in database.", ephemeral=True)
+            return
+
+        total_pages = max(1, (len(all_classes) + 24) // 25)
+
+        if self.custom_id == "class_panel_prev":
+            new_page = max(0, current_page - 1)
+        else:
+            new_page = min(total_pages - 1, current_page + 1)
+
+        view = ClassDropdownView(all_classes, page=new_page)
+        await interaction.response.edit_message(view=view)
+
+
 class ClassDropdownView(discord.ui.View):
-    def __init__(self, classes):
-        super().__init__(timeout=None) # Persistent-like static menu (can be rendered dynamically)
-        self.add_item(ClassDropdown(classes))
+    def __init__(self, classes, page=0):
+        super().__init__(timeout=None)
+        
+        total_classes = len(classes)
+        total_pages = max(1, (total_classes + 24) // 25)
+        page = max(0, min(page, total_pages - 1))
+        
+        page_classes = classes[page*25 : (page+1)*25]
+        
+        self.add_item(ClassDropdown(page_classes, page=page, total_pages=total_pages))
+        self.add_item(ClassNavButton(style=discord.ButtonStyle.secondary, label="◀ Prev", custom_id="class_panel_prev", disabled=(page == 0)))
+        self.add_item(ClassNavButton(style=discord.ButtonStyle.secondary, label="Next ▶", custom_id="class_panel_next", disabled=(page >= total_pages - 1)))
 
 
 class ClassGuide(commands.Cog):
@@ -82,6 +144,8 @@ class ClassGuide(commands.Cog):
             """
         )
         print("[DATABASE] Verified class_guides and class_config SQL table schemas")
+        self.bot.add_view(ClassDropdownView([]))
+        print("[CLASS PANEL] Registered persistent ClassDropdownView listener")
 
     @staticmethod
     def format_enchant_details(raw_str) -> str:
