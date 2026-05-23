@@ -197,4 +197,16 @@ CREATE TABLE IF NOT EXISTS `tournament_matches` (
   PRIMARY KEY (`guild_id`, `match_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `class_guides` (
+  `guild_id` bigint(20) NOT NULL,
+  `class_name` varchar(100) NOT NULL,
+  `note` text DEFAULT NULL,
+  `enchant_non_forge` text DEFAULT NULL,
+  `enchant_solo` text DEFAULT NULL,
+  `enchant_ultra` text DEFAULT NULL,
+  `potion` text DEFAULT NULL,
+  `combo` text DEFAULT NULL,
+  PRIMARY KEY (`guild_id`, `class_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;

@@ -23,6 +23,7 @@ async def load_cogs():
         "cogs.boosts",
         "cogs.charpage",
         "cogs.tournament",
+        "cogs.class_guide",
     ]
 
     for cog in cogs:
