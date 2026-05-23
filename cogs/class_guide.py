@@ -113,33 +113,33 @@ class ClassGuide(commands.Cog):
 
     @app_commands.command(
         name="class_add",
-        description="Add or overwrite a class guide (Officer Only)"
+        description="Add a new class guide or selectively edit/update an existing one (Officer Only)"
     )
     @app_commands.describe(
         class_name="AQW Class Name (e.g., ArchPaladin, Legion DoomKnight)",
-        note="General notes or class description",
-        enchant_non_forge="Default non-forge enhancement configuration",
-        enchant_solo="Recommended solo enhancement",
-        enchant_ultra="Recommended ultra enhancement",
-        potion="Best potions to use",
-        combo="Combos or rotation sequence"
+        note="General notes or class description (Leave blank to keep current)",
+        enchant_non_forge="Default non-forge enhancement configuration (Leave blank to keep current)",
+        enchant_solo="Recommended solo enhancement (Leave blank to keep current)",
+        enchant_ultra="Recommended ultra enhancement (Leave blank to keep current)",
+        potion="Best potions to use (Leave blank to keep current)",
+        combo="Combos or rotation sequence (Leave blank to keep current)"
     )
     async def class_add(
         self,
         interaction: discord.Interaction,
         class_name: str,
-        note: str,
-        enchant_non_forge: str,
-        enchant_solo: str,
-        enchant_ultra: str,
-        potion: str,
-        combo: str
+        note: str = None,
+        enchant_non_forge: str = None,
+        enchant_solo: str = None,
+        enchant_ultra: str = None,
+        potion: str = None,
+        combo: str = None
     ):
         # 1. Authorize Officer status
         from cogs.tickets import is_officer
         if not await is_officer(interaction.user):
             await interaction.response.send_message(
-                "❌ Only Faction Officers or Administrators can write class guides.",
+                "❌ Only Faction Officers or Administrators can manage class guides.",
                 ephemeral=True
             )
             return
@@ -147,7 +147,36 @@ class ClassGuide(commands.Cog):
         guild_id = interaction.guild.id
         class_name_clean = class_name.strip()
 
-        # 2. Insert or update guide (overwrite if duplicate)
+        # 2. Check if the guide already exists in the database
+        existing = await fetchone(
+            """
+            SELECT * FROM class_guides
+            WHERE guild_id = %s AND class_name = %s
+            """,
+            (guild_id, class_name_clean)
+        )
+
+        is_update = False
+
+        if existing:
+            is_update = True
+            # Merge: Use new inputs if provided, otherwise preserve existing DB values
+            final_note = note if note is not None else existing["note"]
+            final_non_forge = enchant_non_forge if enchant_non_forge is not None else existing["enchant_non_forge"]
+            final_solo = enchant_solo if enchant_solo is not None else existing["enchant_solo"]
+            final_ultra = enchant_ultra if enchant_ultra is not None else existing["enchant_ultra"]
+            final_potion = potion if potion is not None else existing["potion"]
+            final_combo = combo if combo is not None else existing["combo"]
+        else:
+            # New class guide setup: Default missing values to N/A
+            final_note = note if note is not None else "No description provided."
+            final_non_forge = enchant_non_forge if enchant_non_forge is not None else "N/A"
+            final_solo = enchant_solo if enchant_solo is not None else "N/A"
+            final_ultra = enchant_ultra if enchant_ultra is not None else "N/A"
+            final_potion = potion if potion is not None else "N/A"
+            final_combo = combo if combo is not None else "N/A"
+
+        # 3. Write/Overwrite inside database
         await execute(
             """
             INSERT INTO class_guides
@@ -173,19 +202,20 @@ class ClassGuide(commands.Cog):
             (
                 guild_id,
                 class_name_clean,
-                note,
-                enchant_non_forge,
-                enchant_solo,
-                enchant_ultra,
-                potion,
-                combo
+                final_note,
+                final_non_forge,
+                final_solo,
+                final_ultra,
+                final_potion,
+                final_combo
             )
         )
 
+        action_msg = "updated/edited" if is_update else "newly registered"
         await interaction.response.send_message(
-            f"✅ **AQW Class Guide Registered!**\n"
-            f"Successfully recorded specifications for **{class_name_clean}**. "
-            f"If it existed before, the old data was overwritten.",
+            f"✅ **AQW Class Guide Success!**\n"
+            f"Specifications for **{class_name_clean}** have been successfully **{action_msg}** in the library. "
+            f"Only the fields you entered were changed; all others were preserved.",
             ephemeral=True
         )
 
