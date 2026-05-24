@@ -168,7 +168,7 @@ class ClassGuide(commands.Cog):
             f"<:helmicon:1506182631887339560> **Helm:** `{helm}`\n"
             f"<:classicon:1506184256894926898> **Class:** `{cls}`\n"
             f"<:capeicon:1506183156024344687> **Cape:** `{cape}`\n"
-            f"<:swordicon:1506182453398601749> **Weapon:** `{weapon}`"
+            f"<:swordicon:1506182453398601749> **Weapon:** `{weapon}`\n"
         )
 
     @staticmethod
@@ -408,6 +408,64 @@ class ClassGuide(commands.Cog):
             ]
         except Exception:
             return []
+
+    @app_commands.command(
+        name="class_delete",
+        description="Delete an existing class guide from the library (Officer Only)"
+    )
+    @app_commands.describe(
+        class_name="Name of the class guide to delete"
+    )
+    async def class_delete(self, interaction: discord.Interaction, class_name: str):
+        # 1. Authorize Officer status
+        from cogs.tickets import is_officer
+        if not await is_officer(interaction.user):
+            await interaction.response.send_message(
+                "❌ Only Faction Officers or Administrators can manage class guides.",
+                ephemeral=True
+            )
+            return
+
+        guild_id = interaction.guild.id
+        class_name_clean = class_name.strip()
+
+        # 2. Check if the guide exists in the database
+        existing = await fetchone(
+            """
+            SELECT class_name FROM class_guides
+            WHERE guild_id = %s AND class_name = %s
+            """,
+            (guild_id, class_name_clean)
+        )
+
+        if not existing:
+            await interaction.response.send_message(
+                f"❌ Class guide for `{class_name_clean}` not found in library.",
+                ephemeral=True
+            )
+            return
+
+        # 3. Delete from database
+        await execute(
+            """
+            DELETE FROM class_guides
+            WHERE guild_id = %s AND class_name = %s
+            """,
+            (guild_id, class_name_clean)
+        )
+
+        # 4. Automatically update persistent in-place dropdown select panel (if it exists)
+        await self.update_persistent_panel(guild_id)
+
+        await interaction.response.send_message(
+            f"✅ **AQW Class Guide Deleted!**\n"
+            f"Specifications for **{class_name_clean}** have been successfully removed from the library.",
+            ephemeral=True
+        )
+
+    @class_delete.autocomplete("class_name")
+    async def class_delete_autocomplete(self, interaction: discord.Interaction, current: str):
+        return await self.class_guide_autocomplete(interaction, current)
 
     @app_commands.command(
         name="class_panel",
