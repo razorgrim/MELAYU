@@ -5,6 +5,8 @@ from bs4 import BeautifulSoup
 import re
 import aiohttp
 from urllib.parse import quote_plus
+import math
+import datetime
 
 
 class CharPage(commands.Cog):
@@ -499,6 +501,134 @@ class CharPage(commands.Cog):
 
         embed.set_thumbnail(url="https://imgur.com/ILiLVM7.png")
         embed.set_author(name="AQW MELAYU", icon_url="https://imgur.com/ILiLVM7.png")
+
+        await interaction.followup.send(embed=embed)
+
+    def simulate_spins(self, today: datetime.date, spins_needed: int, daily: bool) -> tuple[int, datetime.date]:
+        if spins_needed <= 0:
+            return 0, today
+            
+        current_spins = 0
+        d = 0
+        while True:
+            current_date = today + datetime.timedelta(days=d)
+            spins_today = 0
+            
+            # Daily spin
+            if daily:
+                spins_today += 1
+                
+            # Weekly spin on Wednesdays (weekday == 2 in Python)
+            if current_date.weekday() == 2:
+                spins_today += 1
+                
+            if spins_today > 0:
+                current_spins += spins_today
+                if current_spins >= spins_needed:
+                    return d, current_date
+            
+            d += 1
+
+    def generate_progress_bar(self, current: int, target: int = 1000, length: int = 10) -> str:
+        pct = min(100.0, (current / target) * 100.0)
+        filled = int(pct / (100 / length))
+        filled = max(0, min(length, filled))
+        bar = "▰" * filled + "▱" * (length - filled)
+        return f"`[{bar}]` `{pct:.1f}%`"
+
+    @app_commands.command(
+        name="ioda",
+        description="Calculate Wheel of Doom IoDA progression and estimates by IGN"
+    )
+    @app_commands.describe(
+        ign="AQW in-game name"
+    )
+    async def ioda(self, interaction: discord.Interaction, ign: str):
+        await interaction.response.defer()
+
+        html, url = await self.fetch_charpage(ign)
+
+        if not html:
+            await interaction.followup.send(
+                f"Could not find character page for `{ign}`."
+            )
+            return
+
+        soup = BeautifulSoup(html, "html.parser")
+        char_id = self.find_ccid(html, soup)
+        
+        if not char_id:
+            await interaction.followup.send(
+                f"Could not retrieve Character ID for `{ign}`."
+            )
+            return
+
+        tp_str = await self.fetch_treasure_points(char_id)
+        try:
+            tp_current = int(tp_str)
+        except ValueError:
+            tp_current = 0
+
+        tp_target = 1000
+        tp_remaining = max(0, tp_target - tp_current)
+
+        # Main progress bar (10 blocks)
+        main_progress = self.generate_progress_bar(tp_current, tp_target, length=10)
+
+        # Create beautiful Embed
+        embed = discord.Embed(
+            title="IoDA's Calculator <:Melayu:1505432584090423476>:",
+            description=f"[{ign}](<{url}>) has `{tp_current}` Treasure Potions 🍖\n\n{main_progress}",
+            color=discord.Color.gold()
+        )
+        embed.set_author(
+            name="AQW MELAYU",
+            icon_url="https://imgur.com/ILiLVM7.png"
+        )
+        embed.set_thumbnail(
+            url="https://imgur.com/ILiLVM7.png"
+        )
+        embed.set_footer(
+            text="Wheel of Doom IoDA Calculator | Powered by AQW Melayu",
+            icon_url="https://imgur.com/ILiLVM7.png"
+        )
+
+        scenarios = [2, 6]
+        today = datetime.date.today()
+
+        for rate in scenarios:
+            spins_needed = math.ceil(tp_remaining / rate)
+            ac_cost = spins_needed * 200
+            
+            # Daily + Weekly simulation
+            days_dw, date_dw = self.simulate_spins(today, spins_needed, daily=True)
+            weeks_dw = days_dw / 7
+            months_dw = days_dw // 30
+            due_dw = f"{date_dw.day} {date_dw.strftime('%B')}, {date_dw.year}"
+            
+            # Weekly only simulation
+            days_w, date_w = self.simulate_spins(today, spins_needed, daily=False)
+            weeks_w = days_w / 7
+            months_w = days_w // 30
+            due_w = f"{date_w.day} {date_w.strftime('%B')}, {date_w.year}"
+
+            field_name = f"`{rate} Treasure Potions per spin`"
+            field_value = (
+                f"__With <:acicon2:1506190761543340072>s__\n"
+                f"**Spins:** {spins_needed} ({ac_cost:,} <:acicon2:1506190761543340072>s)\n\n"
+                f"__With <:Member:1505373039267680457> daily + weekly spins__\n"
+                f"**Days:** {days_dw} ({weeks_dw:.1f} W/ {months_dw} M)\n"
+                f"**Due:** `{due_dw}`\n\n"
+                f"__With weekly spins only__\n"
+                f"**Days:** {days_w} ({weeks_w:.1f} W/ {months_w} M)\n"
+                f"**Due:** `{due_w}`"
+            )
+            
+            embed.add_field(
+                name=field_name,
+                value=field_value,
+                inline=True
+            )
 
         await interaction.followup.send(embed=embed)
 
