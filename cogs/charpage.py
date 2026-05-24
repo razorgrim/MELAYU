@@ -614,8 +614,8 @@ class CharPage(commands.Cog):
 
             field_name = f"`{rate} Treasure Potions per spin`"
             field_value = (
-                f"__With <:acicon2:1506190761543340072>s__\n"
-                f"**Spins:** {spins_needed} ({ac_cost:,} <:acicon2:1506190761543340072>s)\n\n"
+                f"__With <:acicon:1506189807699759176>s__\n"
+                f"**Spins:** {spins_needed} ({ac_cost:,} <:acicon:1506189807699759176>s)\n\n"
                 f"__With <:Member:1505373039267680457> daily + weekly spins__\n"
                 f"**Days:** {days_dw} ({weeks_dw:.1f} W/ {months_dw} M)\n"
                 f"**Due:** `{due_dw}`\n\n"
