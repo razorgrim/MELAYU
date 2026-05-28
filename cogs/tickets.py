@@ -1114,7 +1114,7 @@ class TicketControlView(discord.ui.View):
 
     @discord.ui.button(
         label="Join as Helper",
-        style=discord.ButtonStyle.success,
+        style=discord.ButtonStyle.primary,
         emoji="🙋",
         custom_id="ticket_join_helper"
     )
@@ -1348,7 +1348,7 @@ class TicketControlView(discord.ui.View):
 
     @discord.ui.button(
         label="Complete Ticket",
-        style=discord.ButtonStyle.primary,
+        style=discord.ButtonStyle.success,
         emoji="✅",
         custom_id="ticket_complete"
     )
