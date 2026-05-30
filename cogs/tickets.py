@@ -1640,6 +1640,61 @@ class TicketControlView(discord.ui.View):
         except Exception:
             pass
 
+
+class LeaderboardView(discord.ui.View):
+    def __init__(self, data, guild, page=0, per_page=10):
+        super().__init__(timeout=180)
+        self.data = data
+        self.guild = guild
+        self.page = page
+        self.per_page = per_page
+        self.total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        self.update_button_states()
+
+    def update_button_states(self):
+        self.prev_btn.disabled = self.page == 0
+        self.next_btn.disabled = self.page >= self.total_pages - 1
+
+    def generate_embed(self) -> discord.Embed:
+        start = self.page * self.per_page
+        end = start + self.per_page
+        page_data = self.data[start:end]
+
+        description = ""
+        for index, row in enumerate(page_data, start=start + 1):
+            member = self.guild.get_member(row["user_id"])
+            name = member.mention if member else f"<@{row['user_id']}>"
+            description += f"**{index}.** {name} — **{row['points']} points**\n"
+
+        embed = discord.Embed(
+            title="🏆 Points Leaderboard",
+            description=description or "No points recorded.",
+            color=discord.Color.gold()
+        )
+        embed.set_footer(text=f"Page {self.page + 1}/{self.total_pages} • Total Ranked: {len(self.data)}")
+        return embed
+
+    @discord.ui.button(
+        label="◀ Prev",
+        style=discord.ButtonStyle.secondary,
+        custom_id="leaderboard_prev"
+    )
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = max(0, self.page - 1)
+        self.update_button_states()
+        await interaction.response.edit_message(embed=self.generate_embed(), view=self)
+
+    @discord.ui.button(
+        label="Next ▶",
+        style=discord.ButtonStyle.secondary,
+        custom_id="leaderboard_next"
+    )
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = min(self.total_pages - 1, self.page + 1)
+        self.update_button_states()
+        await interaction.response.edit_message(embed=self.generate_embed(), view=self)
+
+
 class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -1910,7 +1965,6 @@ class Tickets(commands.Cog):
             FROM helper_points
             WHERE guild_id = %s
             ORDER BY points DESC
-            LIMIT 10
             """,
             (interaction.guild.id,)
         )
@@ -1922,29 +1976,8 @@ class Tickets(commands.Cog):
             )
             return
 
-        description = ""
-
-        for index, row in enumerate(data, start=1):
-            member = interaction.guild.get_member(row["user_id"])
-
-            name = (
-                member.mention
-                if member
-                else f"User ID {row['user_id']}"
-            )
-
-            description += (
-                f"**{index}.** {name} — "
-                f"**{row['points']} points**\n"
-            )
-
-        embed = discord.Embed(
-            title="🏆 Points Leaderboard",
-            description=description,
-            color=discord.Color.gold()
-        )
-
-        await interaction.response.send_message(embed=embed)
+        view = LeaderboardView(data, interaction.guild)
+        await interaction.response.send_message(embed=view.generate_embed(), view=view)
 
     @app_commands.command(
         name="resetleaderboard",
