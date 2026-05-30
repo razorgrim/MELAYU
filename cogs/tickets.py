@@ -1634,6 +1634,11 @@ class TicketControlView(discord.ui.View):
         )
 
         try:
+            await LeaderboardView.update_all_active(interaction.guild)
+        except Exception as e:
+            print(f"[LEADERBOARD] Failed to update active views on close: {e}")
+
+        try:
             await interaction.channel.delete(
                 reason="Ticket completed"
             )
@@ -1642,6 +1647,8 @@ class TicketControlView(discord.ui.View):
 
 
 class LeaderboardView(discord.ui.View):
+    active_views = []
+
     def __init__(self, data, guild, page=0, per_page=10):
         super().__init__(timeout=180)
         self.data = data
@@ -1649,7 +1656,9 @@ class LeaderboardView(discord.ui.View):
         self.page = page
         self.per_page = per_page
         self.total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        self.message = None
         self.update_button_states()
+        LeaderboardView.active_views.append(self)
 
     def update_button_states(self):
         self.prev_btn.disabled = self.page == 0
@@ -1674,13 +1683,37 @@ class LeaderboardView(discord.ui.View):
         embed.set_footer(text=f"Page {self.page + 1}/{self.total_pages} • Total Ranked: {len(self.data)}")
         return embed
 
+    async def on_timeout(self):
+        if self in LeaderboardView.active_views:
+            LeaderboardView.active_views.remove(self)
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
     @discord.ui.button(
         label="◀ Prev",
         style=discord.ButtonStyle.secondary,
         custom_id="leaderboard_prev"
     )
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page = max(0, self.page - 1)
+        # Fetch fresh data
+        data = await fetchall(
+            """
+            SELECT user_id, points
+            FROM helper_points
+            WHERE guild_id = %s
+            ORDER BY points DESC
+            """,
+            (self.guild.id,)
+        )
+        self.data = data
+        self.total_pages = max(1, (len(data) + self.per_page - 1) // self.per_page)
+        self.page = max(0, min(self.page - 1, self.total_pages - 1))
         self.update_button_states()
         await interaction.response.edit_message(embed=self.generate_embed(), view=self)
 
@@ -1690,9 +1723,56 @@ class LeaderboardView(discord.ui.View):
         custom_id="leaderboard_next"
     )
     async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page = min(self.total_pages - 1, self.page + 1)
+        # Fetch fresh data
+        data = await fetchall(
+            """
+            SELECT user_id, points
+            FROM helper_points
+            WHERE guild_id = %s
+            ORDER BY points DESC
+            """,
+            (self.guild.id,)
+        )
+        self.data = data
+        self.total_pages = max(1, (len(data) + self.per_page - 1) // self.per_page)
+        self.page = max(0, min(self.page + 1, self.total_pages - 1))
         self.update_button_states()
         await interaction.response.edit_message(embed=self.generate_embed(), view=self)
+
+    @classmethod
+    async def update_all_active(cls, guild):
+        data = await fetchall(
+            """
+            SELECT user_id, points
+            FROM helper_points
+            WHERE guild_id = %s
+            ORDER BY points DESC
+            """,
+            (guild.id,)
+        )
+        to_remove = []
+        for view in list(cls.active_views):
+            if view.guild.id != guild.id:
+                continue
+            if view.is_finished():
+                to_remove.append(view)
+                continue
+
+            view.data = data
+            view.total_pages = max(1, (len(data) + view.per_page - 1) // view.per_page)
+            view.page = max(0, min(view.page, view.total_pages - 1))
+            view.update_button_states()
+
+            if view.message:
+                try:
+                    await view.message.edit(embed=view.generate_embed(), view=view)
+                except Exception as e:
+                    print(f"[LEADERBOARD] Failed to auto-update leaderboard message: {e}")
+                    to_remove.append(view)
+
+        for view in to_remove:
+            if view in cls.active_views:
+                cls.active_views.remove(view)
 
 
 class Tickets(commands.Cog):
@@ -1978,6 +2058,11 @@ class Tickets(commands.Cog):
 
         view = LeaderboardView(data, interaction.guild)
         await interaction.response.send_message(embed=view.generate_embed(), view=view)
+        try:
+            message = await interaction.original_response()
+            view.message = message
+        except Exception as e:
+            print(f"[LEADERBOARD] Failed to get original response message: {e}")
 
     @app_commands.command(
         name="resetleaderboard",
@@ -2002,6 +2087,11 @@ class Tickets(commands.Cog):
         await interaction.response.send_message(
             "🧹 Ticket leaderboard has been reset successfully."
         )
+
+        try:
+            await LeaderboardView.update_all_active(interaction.guild)
+        except Exception as e:
+            print(f"[LEADERBOARD] Failed to update active views on reset: {e}")
 
     @app_commands.command(
         name="dailystats",
