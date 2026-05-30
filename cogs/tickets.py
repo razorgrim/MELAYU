@@ -1,6 +1,7 @@
 import json
 import discord
 import random
+import re
 from discord.ext import commands
 from discord import app_commands
 import time
@@ -1634,9 +1635,9 @@ class TicketControlView(discord.ui.View):
         )
 
         try:
-            await LeaderboardView.update_all_active(interaction.guild)
+            await update_persistent_leaderboard(interaction.guild)
         except Exception as e:
-            print(f"[LEADERBOARD] Failed to update active views on close: {e}")
+            print(f"[LEADERBOARD] Failed to update leaderboard: {e}")
 
         try:
             await interaction.channel.delete(
@@ -1647,31 +1648,24 @@ class TicketControlView(discord.ui.View):
 
 
 class LeaderboardView(discord.ui.View):
-    active_views = []
+    def __init__(self):
+        super().__init__(timeout=None)
 
-    def __init__(self, data, guild, page=0, per_page=10):
-        super().__init__(timeout=180)
-        self.data = data
-        self.guild = guild
-        self.page = page
-        self.per_page = per_page
-        self.total_pages = max(1, (len(data) + per_page - 1) // per_page)
-        self.message = None
-        self.update_button_states()
-        LeaderboardView.active_views.append(self)
+    def update_button_states(self, total_pages, page):
+        self.prev_btn.disabled = page == 0
+        self.next_btn.disabled = page >= total_pages - 1
 
-    def update_button_states(self):
-        self.prev_btn.disabled = self.page == 0
-        self.next_btn.disabled = self.page >= self.total_pages - 1
-
-    def generate_embed(self) -> discord.Embed:
-        start = self.page * self.per_page
-        end = start + self.per_page
-        page_data = self.data[start:end]
+    def generate_embed(self, data, guild, page, per_page=10) -> discord.Embed:
+        total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        page = max(0, min(page, total_pages - 1))
+        
+        start = page * per_page
+        end = start + per_page
+        page_data = data[start:end]
 
         description = ""
         for index, row in enumerate(page_data, start=start + 1):
-            member = self.guild.get_member(row["user_id"])
+            member = guild.get_member(row["user_id"])
             name = member.mention if member else f"<@{row['user_id']}>"
             description += f"**{index}.** {name} — **{row['points']} points**\n"
 
@@ -1680,20 +1674,8 @@ class LeaderboardView(discord.ui.View):
             description=description or "No points recorded.",
             color=discord.Color.gold()
         )
-        embed.set_footer(text=f"Page {self.page + 1}/{self.total_pages} • Total Ranked: {len(self.data)}")
+        embed.set_footer(text=f"Page {page + 1}/{total_pages} • Total Ranked: {len(data)}")
         return embed
-
-    async def on_timeout(self):
-        if self in LeaderboardView.active_views:
-            LeaderboardView.active_views.remove(self)
-        for child in self.children:
-            if isinstance(child, discord.ui.Button):
-                child.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except Exception:
-                pass
 
     @discord.ui.button(
         label="◀ Prev",
@@ -1701,7 +1683,7 @@ class LeaderboardView(discord.ui.View):
         custom_id="leaderboard_prev"
     )
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Fetch fresh data
+        # 1. Fetch latest data from database
         data = await fetchall(
             """
             SELECT user_id, points
@@ -1709,13 +1691,29 @@ class LeaderboardView(discord.ui.View):
             WHERE guild_id = %s
             ORDER BY points DESC
             """,
-            (self.guild.id,)
+            (interaction.guild.id,)
         )
-        self.data = data
-        self.total_pages = max(1, (len(data) + self.per_page - 1) // self.per_page)
-        self.page = max(0, min(self.page - 1, self.total_pages - 1))
-        self.update_button_states()
-        await interaction.response.edit_message(embed=self.generate_embed(), view=self)
+        per_page = 10
+        total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        
+        # 2. Parse current page from embed footer
+        current_page = 0
+        try:
+            embed = interaction.message.embeds[0]
+            footer_text = embed.footer.text
+            match = re.search(r"Page (\d+)/(\d+)", footer_text)
+            if match:
+                current_page = int(match.group(1)) - 1
+        except Exception:
+            pass
+
+        # 3. Calculate new page
+        new_page = max(0, min(current_page - 1, total_pages - 1))
+        
+        # 4. Update button states and edit message
+        self.update_button_states(total_pages, new_page)
+        embed = self.generate_embed(data, interaction.guild, new_page, per_page)
+        await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(
         label="Next ▶",
@@ -1723,7 +1721,7 @@ class LeaderboardView(discord.ui.View):
         custom_id="leaderboard_next"
     )
     async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Fetch fresh data
+        # 1. Fetch latest data from database
         data = await fetchall(
             """
             SELECT user_id, points
@@ -1731,48 +1729,82 @@ class LeaderboardView(discord.ui.View):
             WHERE guild_id = %s
             ORDER BY points DESC
             """,
-            (self.guild.id,)
+            (interaction.guild.id,)
         )
-        self.data = data
-        self.total_pages = max(1, (len(data) + self.per_page - 1) // self.per_page)
-        self.page = max(0, min(self.page + 1, self.total_pages - 1))
-        self.update_button_states()
-        await interaction.response.edit_message(embed=self.generate_embed(), view=self)
+        per_page = 10
+        total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        
+        # 2. Parse current page from embed footer
+        current_page = 0
+        try:
+            embed = interaction.message.embeds[0]
+            footer_text = embed.footer.text
+            match = re.search(r"Page (\d+)/(\d+)", footer_text)
+            if match:
+                current_page = int(match.group(1)) - 1
+        except Exception:
+            pass
 
-    @classmethod
-    async def update_all_active(cls, guild):
-        data = await fetchall(
-            """
-            SELECT user_id, points
-            FROM helper_points
-            WHERE guild_id = %s
-            ORDER BY points DESC
-            """,
-            (guild.id,)
-        )
-        to_remove = []
-        for view in list(cls.active_views):
-            if view.guild.id != guild.id:
-                continue
-            if view.is_finished():
-                to_remove.append(view)
-                continue
+        # 3. Calculate new page
+        new_page = max(0, min(current_page + 1, total_pages - 1))
+        
+        # 4. Update button states and edit message
+        self.update_button_states(total_pages, new_page)
+        embed = self.generate_embed(data, interaction.guild, new_page, per_page)
+        await interaction.response.edit_message(embed=embed, view=self)
 
-            view.data = data
-            view.total_pages = max(1, (len(data) + view.per_page - 1) // view.per_page)
-            view.page = max(0, min(view.page, view.total_pages - 1))
-            view.update_button_states()
 
-            if view.message:
-                try:
-                    await view.message.edit(embed=view.generate_embed(), view=view)
-                except Exception as e:
-                    print(f"[LEADERBOARD] Failed to auto-update leaderboard message: {e}")
-                    to_remove.append(view)
+async def update_persistent_leaderboard(guild):
+    # 1. Fetch leaderboard config from DB
+    config = await fetchone(
+        "SELECT channel_id, message_id FROM leaderboard_config WHERE guild_id = %s",
+        (guild.id,)
+    )
+    if not config or not config["channel_id"] or not config["message_id"]:
+        return
 
-        for view in to_remove:
-            if view in cls.active_views:
-                cls.active_views.remove(view)
+    # 2. Fetch fresh rankings
+    data = await fetchall(
+        """
+        SELECT user_id, points
+        FROM helper_points
+        WHERE guild_id = %s
+        ORDER BY points DESC
+        """,
+        (guild.id,)
+    )
+    
+    # 3. Retrieve channel and message
+    try:
+        channel = guild.get_channel(config["channel_id"])
+        if not channel:
+            channel = await guild.fetch_channel(config["channel_id"])
+        message = await channel.fetch_message(config["message_id"])
+
+        # 4. Preserve page context
+        current_page = 0
+        try:
+            embed = message.embeds[0]
+            footer_text = embed.footer.text
+            match = re.search(r"Page (\d+)/(\d+)", footer_text)
+            if match:
+                current_page = int(match.group(1)) - 1
+        except Exception:
+            pass
+
+        per_page = 10
+        total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        page = max(0, min(current_page, total_pages - 1))
+
+        # Recreate view
+        view = LeaderboardView()
+        view.update_button_states(total_pages, page)
+        embed = view.generate_embed(data, guild, page, per_page)
+        
+        await message.edit(embed=embed, view=view)
+        print(f"[LEADERBOARD PANEL] Automatically updated persistent leaderboard message for guild {guild.id}")
+    except Exception as e:
+        print(f"[LEADERBOARD PANEL ERROR] Failed to auto-update persistent leaderboard: {e}")
 
 
 class Tickets(commands.Cog):
@@ -1781,7 +1813,22 @@ class Tickets(commands.Cog):
         self.bot.add_view(TicketControlView())
         self.bot.add_view(TicketPanelView())
         self.bot.add_view(OfficerControlView())
+        self.bot.add_view(LeaderboardView())
         self.auto_close_inactive_tickets.start()
+
+    async def cog_load(self):
+        # Auto-create the leaderboard_config SQL table on startup for persistent message syncing
+        await execute(
+            """
+            CREATE TABLE IF NOT EXISTS `leaderboard_config` (
+                `guild_id` bigint(20) NOT NULL,
+                `channel_id` bigint(20) DEFAULT NULL,
+                `message_id` bigint(20) DEFAULT NULL,
+                PRIMARY KEY (`guild_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+        )
+        print("[DATABASE] Verified leaderboard_config SQL table schema")
 
     def cog_unload(self):
         self.auto_close_inactive_tickets.cancel()
@@ -2056,13 +2103,12 @@ class Tickets(commands.Cog):
             )
             return
 
-        view = LeaderboardView(data, interaction.guild)
-        await interaction.response.send_message(embed=view.generate_embed(), view=view)
-        try:
-            message = await interaction.original_response()
-            view.message = message
-        except Exception as e:
-            print(f"[LEADERBOARD] Failed to get original response message: {e}")
+        view = LeaderboardView()
+        per_page = 10
+        total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        view.update_button_states(total_pages, 0)
+        embed = view.generate_embed(data, interaction.guild, 0, per_page)
+        await interaction.response.send_message(embed=embed, view=view)
 
     @app_commands.command(
         name="resetleaderboard",
@@ -2089,9 +2135,9 @@ class Tickets(commands.Cog):
         )
 
         try:
-            await LeaderboardView.update_all_active(interaction.guild)
+            await update_persistent_leaderboard(interaction.guild)
         except Exception as e:
-            print(f"[LEADERBOARD] Failed to update active views on reset: {e}")
+            print(f"[LEADERBOARD] Failed to update leaderboard on reset: {e}")
 
     @app_commands.command(
         name="dailystats",
@@ -2149,5 +2195,66 @@ class Tickets(commands.Cog):
         )
 
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(
+        name="leaderboard_panel",
+        description="Post the permanent interactive Helper Leaderboard panel (Officer Only)"
+    )
+    @app_commands.describe(
+        channel="Optional channel to send the panel in"
+    )
+    async def leaderboard_panel(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
+        if not await is_officer(interaction.user):
+            await interaction.response.send_message(
+                "❌ Only Officers or Administrators can configure the leaderboard panel.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        target_channel = channel or interaction.channel
+        guild_id = interaction.guild.id
+
+        # 1. Query points
+        data = await fetchall(
+            """
+            SELECT user_id, points
+            FROM helper_points
+            WHERE guild_id = %s
+            ORDER BY points DESC
+            """,
+            (guild_id,)
+        )
+
+        # 2. Build view and embed
+        view = LeaderboardView()
+        per_page = 10
+        total_pages = max(1, (len(data) + per_page - 1) // per_page)
+        view.update_button_states(total_pages, 0)
+        embed = view.generate_embed(data, interaction.guild, 0, per_page)
+
+        # 3. Send message
+        message = await target_channel.send(embed=embed, view=view)
+
+        # 4. Save channel and message references in MySQL for auto-updating
+        await execute(
+            """
+            INSERT INTO leaderboard_config (guild_id, channel_id, message_id)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                channel_id = VALUES(channel_id),
+                message_id = VALUES(message_id)
+            """,
+            (guild_id, target_channel.id, message.id)
+        )
+
+        await interaction.followup.send(
+            f"✅ Helper Leaderboard panel has been posted in {target_channel.mention}!\n"
+            f"This panel will automatically self-update in real-time whenever points are gained or reset.",
+            ephemeral=True
+        )
+
+
 async def setup(bot):
     await bot.add_cog(Tickets(bot))
