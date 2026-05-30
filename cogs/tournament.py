@@ -229,19 +229,32 @@ class PvPTournament(commands.Cog):
         bracket_lines = []
 
         # Determine rounds
-        if config["player_limit"] == 8:
-            rounds_config = [
-                ("ROUND 1 (Quarter-Finals)", [1, 2, 3, 4]),
-                ("ROUND 2 (Semi-Finals)", [5, 6]),
-                ("GRAND FINALS", [7])
-            ]
-        else:  # 16 players
-            rounds_config = [
-                ("ROUND 1 (1/8 Finals)", [1, 2, 3, 4, 5, 6, 7, 8]),
-                ("ROUND 2 (Quarter-Finals)", [9, 10, 11, 12]),
-                ("ROUND 3 (Semi-Finals)", [13, 14]),
-                ("GRAND FINALS", [15])
-            ]
+        rounds_config = []
+        limit = config["player_limit"]
+        round_start_id = 1
+        current_limit = limit // 2
+        round_num = 1
+        
+        while current_limit > 0:
+            match_ids = list(range(round_start_id, round_start_id + current_limit))
+            
+            # Determine title
+            if current_limit == 1:
+                title = "GRAND FINALS"
+            elif current_limit == 2:
+                title = f"ROUND {round_num} (Semi-Finals)"
+            elif current_limit == 4:
+                title = f"ROUND {round_num} (Quarter-Finals)"
+            elif current_limit == 8:
+                title = f"ROUND {round_num} (1/8 Finals)"
+            else:
+                title = f"ROUND {round_num}"
+                
+            rounds_config.append((title, match_ids))
+            
+            round_start_id += current_limit
+            current_limit = current_limit // 2
+            round_num += 1
 
         for round_title, match_ids in rounds_config:
             bracket_lines.append(f"🟢 **{round_title}**")
@@ -250,32 +263,32 @@ class PvPTournament(commands.Cog):
                 match = matches_dict.get(m_id)
                 if not match:
                     continue
-
+ 
                 p1_name = await self.get_player_name(guild_id, match["player1_id"])
                 p2_name = await self.get_player_name(guild_id, match["player2_id"])
-
+ 
                 score_str = ""
                 if match["winner_id"] or (match["player1_score"] > 0 or match["player2_score"] > 0):
                     score_str = f" `({match['player1_score']} - {match['player2_score']})`"
-
+ 
                 winner_name = await self.get_player_name(guild_id, match["winner_id"]) if match["winner_id"] else None
                 winner_str = f"👑 Winner: **`{winner_name}`**" if winner_name else "Winner: *Pending*"
-
+ 
                 bracket_lines.append(
                     f"• **Match {m_id}:** `{p1_name}` vs `{p2_name}`{score_str}\n"
                     f"  └─ {winner_str}"
                 )
             
             bracket_lines.append("") # Spacer between rounds
-
+ 
         embed.description = (
             "🏆 **PVP TOURNAMENT BRACKETS & STANDINGS** 🏆\n\n"
             f"Here is the active PvP tournament status. Keep coordinate duels in PvP map `/join doomarena`.\n\n"
             + "\n".join(bracket_lines)
         )
-
+ 
         # Declare overall winner if Grand Final is complete
-        final_match_id = 7 if config["player_limit"] == 8 else 15
+        final_match_id = limit - 1
         final_match = matches_dict.get(final_match_id)
         if final_match and final_match["winner_id"]:
             champion_name = await self.get_player_name(guild_id, final_match["winner_id"])
@@ -344,49 +357,37 @@ class PvPTournament(commands.Cog):
                     break
 
     async def advance_player(self, guild_id, match_id, winner_id, limit):
-        # Helper mapping of current match to next match index
-        if limit == 8:
-            advancement_map = {
-                1: (5, "p1"),
-                2: (5, "p2"),
-                3: (6, "p1"),
-                4: (6, "p2"),
-                5: (7, "p1"),
-                6: (7, "p2")
-            }
-        else: # 16 players
-            advancement_map = {
-                1: (9, "p1"),
-                2: (9, "p2"),
-                3: (10, "p1"),
-                4: (10, "p2"),
-                5: (11, "p1"),
-                6: (11, "p2"),
-                7: (12, "p1"),
-                8: (12, "p2"),
-                9: (13, "p1"),
-                10: (13, "p2"),
-                11: (14, "p1"),
-                12: (14, "p2"),
-                13: (15, "p1"),
-                14: (15, "p2")
-            }
-
-        if match_id not in advancement_map:
-            return # Final match winner does not advance
-
-        next_match_id, slot = advancement_map[match_id]
+        # We find which round match_id belongs to
+        round_start_id = 1
+        current_limit = limit // 2
         
-        if slot == "p1":
-            await execute(
-                "UPDATE tournament_matches SET player1_id = %s WHERE guild_id = %s AND match_id = %s",
-                (winner_id, guild_id, next_match_id)
-            )
-        else:
-            await execute(
-                "UPDATE tournament_matches SET player2_id = %s WHERE guild_id = %s AND match_id = %s",
-                (winner_id, guild_id, next_match_id)
-            )
+        while current_limit > 0:
+            round_end_id = round_start_id + current_limit - 1
+            if round_start_id <= match_id <= round_end_id:
+                # Found the round!
+                if current_limit == 1:
+                    # This is the final match, no advancement
+                    return
+                
+                offset = match_id - round_start_id
+                next_round_start_id = round_end_id + 1
+                next_match_id = next_round_start_id + (offset // 2)
+                slot = "p1" if offset % 2 == 0 else "p2"
+                
+                if slot == "p1":
+                    await execute(
+                        "UPDATE tournament_matches SET player1_id = %s WHERE guild_id = %s AND match_id = %s",
+                        (winner_id, guild_id, next_match_id)
+                    )
+                else:
+                    await execute(
+                        "UPDATE tournament_matches SET player2_id = %s WHERE guild_id = %s AND match_id = %s",
+                        (winner_id, guild_id, next_match_id)
+                    )
+                return
+            
+            round_start_id = round_end_id + 1
+            current_limit = current_limit // 2
 
     @app_commands.command(
         name="pvp_setup",
@@ -405,9 +406,9 @@ class PvPTournament(commands.Cog):
             )
             return
 
-        if player_limit not in [8, 16]:
+        if player_limit not in [2, 4, 8, 16, 32, 64]:
             await interaction.response.send_message(
-                "❌ PvP Brackets only support `8` or `16` players at this time.",
+                "❌ PvP Brackets only support powers of 2: `2`, `4`, `8`, `16`, `32`, or `64` players.",
                 ephemeral=True
             )
             return
@@ -474,16 +475,25 @@ class PvPTournament(commands.Cog):
             "SELECT * FROM tournament_players WHERE guild_id = %s ORDER BY seed ASC",
             (guild_id,)
         )
-        if not players:
+        if len(players) < 2:
             await interaction.response.send_message(
-                "❌ Cannot start tournament with 0 players! Please wait for members to register.",
+                "❌ Cannot start tournament with less than 2 players! Please wait for more members to register.",
                 ephemeral=True
             )
             return
 
         await interaction.response.defer(ephemeral=True)
 
-        limit = config["player_limit"]
+        # Determine smallest power of 2 that is >= len(players)
+        limit = 2
+        while limit < len(players):
+            limit *= 2
+
+        # Update player_limit in the database to reflect the actual dynamic limit
+        await execute(
+            "UPDATE tournament_config SET player_limit = %s WHERE guild_id = %s",
+            (limit, guild_id)
+        )
 
         # Shuffle players to keep seeding fresh and exciting
         random.shuffle(players)
@@ -496,38 +506,33 @@ class PvPTournament(commands.Cog):
         # Clean existing matches (safety check)
         await execute("DELETE FROM tournament_matches WHERE guild_id = %s", (guild_id,))
 
-        # Initialize Brackets Matchups
-        if limit == 8:
-            # Round 1 Matchups
-            matchups = [
-                (1, 1, seeded_slots[0], seeded_slots[7]), # Seed 1 vs 8
-                (2, 1, seeded_slots[3], seeded_slots[4]), # Seed 4 vs 5
-                (3, 1, seeded_slots[1], seeded_slots[6]), # Seed 2 vs 7
-                (4, 1, seeded_slots[2], seeded_slots[5]), # Seed 3 vs 6
-                # Empty Round 2 and 3 matches to be filled dynamically
-                (5, 2, None, None),
-                (6, 2, None, None),
-                (7, 3, None, None)
-            ]
-        else: # 16 players
-            matchups = [
-                (1, 1, seeded_slots[0], seeded_slots[15]), # Seed 1 vs 16
-                (2, 1, seeded_slots[7], seeded_slots[8]),  # Seed 8 vs 9
-                (3, 1, seeded_slots[3], seeded_slots[12]), # Seed 4 vs 13
-                (4, 1, seeded_slots[4], seeded_slots[11]), # Seed 5 vs 12
-                (5, 1, seeded_slots[1], seeded_slots[14]), # Seed 2 vs 15
-                (6, 1, seeded_slots[6], seeded_slots[9]),  # Seed 7 vs 10
-                (7, 1, seeded_slots[2], seeded_slots[13]), # Seed 3 vs 14
-                (8, 1, seeded_slots[5], seeded_slots[10]), # Seed 6 vs 11
-                # Semi-Final / Final Slots
-                (9, 2, None, None),
-                (10, 2, None, None),
-                (11, 2, None, None),
-                (12, 2, None, None),
-                (13, 3, None, None),
-                (14, 3, None, None),
-                (15, 4, None, None)
-            ]
+        # Initialize Brackets Matchups Dynamically
+        seeded_order = [0]
+        while len(seeded_order) < limit:
+            new_order = []
+            for x in seeded_order:
+                new_order.append(x)
+                new_order.append(2 * len(seeded_order) - 1 - x)
+            seeded_order = new_order
+
+        matchups = []
+        # Round 1 Matchups
+        for i in range(0, limit, 2):
+            match_id = (i // 2) + 1
+            p1 = seeded_slots[seeded_order[i]]
+            p2 = seeded_slots[seeded_order[i+1]]
+            matchups.append((match_id, 1, p1, p2))
+            
+        # Subsequent Rounds Matchups
+        match_id = (limit // 2) + 1
+        round_num = 2
+        matches_in_round = limit // 4
+        while matches_in_round > 0:
+            for _ in range(matches_in_round):
+                matchups.append((match_id, round_num, None, None))
+                match_id += 1
+            round_num += 1
+            matches_in_round = matches_in_round // 2
 
         # Insert matches into DB
         for m_id, rnd, p1, p2 in matchups:
@@ -643,7 +648,7 @@ class PvPTournament(commands.Cog):
         await self.check_and_resolve_byes(guild_id, limit)
 
         # Check if tournament is completely completed (final match has winner)
-        final_match_id = 7 if limit == 8 else 15
+        final_match_id = limit - 1
         final_match = await fetchone(
             "SELECT winner_id FROM tournament_matches WHERE guild_id = %s AND match_id = %s",
             (guild_id, final_match_id)
