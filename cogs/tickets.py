@@ -2,6 +2,7 @@ import json
 import discord
 import random
 import re
+import asyncio
 from discord.ext import commands
 from discord import app_commands
 import time
@@ -1747,6 +1748,10 @@ class TicketControlView(discord.ui.View):
             helper_ids=helper_ids
         )
 
+        tickets_cog = interaction.client.get_cog("Tickets")
+        if tickets_cog:
+            await tickets_cog.update_completed_tickets_embed(interaction.guild)
+
         await send_ticket_log(
             interaction.guild,
             "🏆 Ticket Completed",
@@ -1941,6 +1946,7 @@ async def update_persistent_leaderboard(guild):
 class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.embed_lock = asyncio.Lock()
         self.bot.add_view(TicketControlView())
         self.bot.add_view(TicketPanelView())
         self.bot.add_view(OfficerControlView())
@@ -1969,16 +1975,146 @@ class Tickets(commands.Cog):
             # Column likely already exists
             pass
 
+        # Dynamically add completed_stats_message_id to ticket_config if not present
+        try:
+            await execute("ALTER TABLE ticket_config ADD COLUMN completed_stats_message_id bigint(20) DEFAULT NULL;")
+            print("[DATABASE] Successfully verified/added completed_stats_message_id column in ticket_config table")
+        except Exception as e:
+            # Column likely already exists
+            pass
+
+    async def update_completed_tickets_embed(self, guild):
+        async with self.embed_lock:
+            config = await get_server_config(guild.id)
+            if not config:
+                return
+
+            active_channel_id = config.get("active_tickets_channel_id")
+            channel = None
+            if active_channel_id:
+                channel = guild.get_channel(active_channel_id)
+                if not channel:
+                    try:
+                        channel = await guild.fetch_channel(active_channel_id)
+                    except Exception:
+                        channel = None
+
+            if not channel:
+                ticket_category_id = config.get("ticket_category_id")
+                if ticket_category_id:
+                    ticket_category = guild.get_channel(ticket_category_id)
+                    if ticket_category:
+                        channel = discord.utils.get(guild.text_channels, name="active-tickets", category=ticket_category)
+
+            if not channel:
+                return
+
+            # Delete previous message if it exists
+            prev_msg_id = config.get("completed_stats_message_id")
+            if prev_msg_id:
+                try:
+                    prev_msg = await channel.fetch_message(prev_msg_id)
+                    await prev_msg.delete()
+                except Exception:
+                    pass
+
+            # Calculate total completed tickets
+            stats = load_json(DAILY_STATS_FILE)
+            total_completed = 0
+            if stats:
+                for date, data in stats.items():
+                    total_completed += data.get("completed_tickets", 0)
+
+            # Create beautiful premium embed
+            embed = discord.Embed(
+                title="🏆 Total Tickets Completed",
+                description=(
+                    f"Thank you to all our amazing helpers and members for their dedication! "
+                    f"Together, we keep the server thriving. 🙌\n\n"
+                    f"✨ **Total Completed Tickets:** `{total_completed}`\n\n"
+                ),
+                color=discord.Color.from_rgb(255, 215, 0)  # Gold
+            )
+            embed.set_image(url="https://i.imgur.com/vBeUbYo.jpeg")
+            if guild.icon:
+                embed.set_footer(text="AQW MELAYU • Ticket Statistics", icon_url=guild.icon.url)
+            else:
+                embed.set_footer(text="AQW MELAYU • Ticket Statistics")
+
+            try:
+                new_msg = await channel.send(embed=embed)
+                await execute(
+                    "UPDATE ticket_config SET completed_stats_message_id = %s WHERE guild_id = %s",
+                    (new_msg.id, guild.id)
+                )
+            except Exception as e:
+                print(f"[TICKETS] Failed to send completed tickets embed: {e}")
+
     def cog_unload(self):
         self.auto_close_inactive_tickets.cancel()
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        # Update ticket activity if message is in an active ticket thread
+        if not message.author.bot:
+            ticket = await get_active_ticket_by_channel(message.channel.id)
+            if ticket:
+                await update_ticket_activity(ticket["id"])
+
+        # Check if the message is in the active tickets channel to keep the embed at the bottom
+        if message.guild:
+            config = await get_server_config(message.guild.id)
+            if config:
+                active_channel_id = config.get("active_tickets_channel_id")
+                
+                is_active_tickets_channel = False
+                if active_channel_id and message.channel.id == active_channel_id:
+                    is_active_tickets_channel = True
+                elif not active_channel_id:
+                    ticket_category_id = config.get("ticket_category_id")
+                    if ticket_category_id and getattr(message.channel, "category_id", None) == ticket_category_id:
+                        if message.channel.name == "active-tickets":
+                            is_active_tickets_channel = True
+
+                if is_active_tickets_channel:
+                    # Ignore the bot's own stats embed to avoid infinite loops
+                    if message.author == self.bot.user and message.embeds and message.embeds[0].title == "🏆 Total Tickets Completed":
+                        return
+                    
+                    # Delete the old embed and send a new one
+                    await self.update_completed_tickets_embed(message.guild)
+
+    @commands.Cog.listener()
+    async def on_thread_create(self, thread):
+        parent_channel = thread.parent
+        if not parent_channel:
             return
-        ticket = await get_active_ticket_by_channel(message.channel.id)
-        if ticket:
-            await update_ticket_activity(ticket["id"])
+
+        config = await get_server_config(thread.guild.id)
+        if not config:
+            return
+
+        active_channel_id = config.get("active_tickets_channel_id")
+        is_active_tickets_channel = False
+        if active_channel_id and parent_channel.id == active_channel_id:
+            is_active_tickets_channel = True
+        elif not active_channel_id:
+            ticket_category_id = config.get("ticket_category_id")
+            if ticket_category_id and getattr(parent_channel, "category_id", None) == ticket_category_id:
+                if parent_channel.name == "active-tickets":
+                    is_active_tickets_channel = True
+
+        if is_active_tickets_channel:
+            await self.update_completed_tickets_embed(thread.guild)
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print("[TICKETS] Cog is ready, verifying completed tickets embeds...")
+        for guild in self.bot.guilds:
+            try:
+                await self.update_completed_tickets_embed(guild)
+            except Exception as e:
+                print(f"[TICKETS] Failed to initialize embed for guild {guild.id}: {e}")
 
     @tasks.loop(minutes=5)
     async def auto_close_inactive_tickets(self):
@@ -2141,6 +2277,11 @@ class Tickets(commands.Cog):
                 active_tickets_channel.id if active_tickets_channel else None
             )
         )
+
+        try:
+            await self.update_completed_tickets_embed(interaction.guild)
+        except Exception as e:
+            print(f"[TICKETS] Failed to update completed tickets embed on setup: {e}")
 
         await interaction.response.send_message(
             "✅ Ticket system setup completed for this server.",
