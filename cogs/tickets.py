@@ -24,6 +24,56 @@ async def cleanup_ticket(ticket_id):
         (ticket_id,)
     )
 
+
+async def remove_requester_overwrite(guild, requester_id, ticket_id):
+    # Fetch ticket Category ID from config
+    config = await get_server_config(guild.id)
+    if not config:
+        return
+    
+    ticket_category = guild.get_channel(config["ticket_category_id"])
+    if not ticket_category:
+        return
+        
+    parent_channel = discord.utils.get(guild.text_channels, name="active-tickets", category=ticket_category)
+    if not parent_channel:
+        return
+        
+    # Check if the requester has any OTHER active tickets
+    other_tickets = await fetchone(
+        """
+        SELECT COUNT(*) as count FROM active_tickets
+        WHERE guild_id = %s AND requester_id = %s AND id != %s
+        """,
+        (guild.id, requester_id, ticket_id)
+    )
+    if not other_tickets or other_tickets["count"] == 0:
+        # Remove parent channel view overwrite for requester
+        requester_member = guild.get_member(requester_id)
+        if not requester_member:
+            try:
+                requester_member = await guild.fetch_member(requester_id)
+            except Exception:
+                requester_member = None
+        if requester_member:
+            try:
+                await parent_channel.set_permissions(requester_member, overwrite=None)
+            except Exception as e:
+                print(f"Failed to remove parent channel overwrite for requester {requester_id}: {e}")
+
+
+async def close_ticket_channel(channel, reason):
+    if isinstance(channel, discord.Thread):
+        try:
+            await channel.edit(locked=True, archived=True, reason=reason)
+        except Exception as e:
+            print(f"Failed to lock and archive thread: {e}")
+    else:
+        try:
+            await channel.delete(reason=reason)
+        except Exception as e:
+            print(f"Failed to delete channel: {e}")
+
 INACTIVE_TIMEOUT_SECONDS = 7200  # 2 hours
 WARNING_BEFORE_CLOSE = 1800  # 30 minutes before (in seconds)
 DAILY_STATS_FILE = "data/daily_stats.json"
@@ -376,37 +426,59 @@ class ActivityMultiSelect(discord.ui.Select):
             if room_number not in used_numbers:
                 break
 
+        # Get requester's IGN from verified_users table
+        verified_user = await fetchone(
+            """
+            SELECT ign FROM verified_users
+            WHERE guild_id = %s AND user_id = %s
+            """,
+            (interaction.guild.id, interaction.user.id)
+        )
+        ign = verified_user["ign"] if verified_user else interaction.user.display_name
+
         category_slug = self.category.lower().replace(" ", "-")
-        channel_name = f"ticket-{category_slug}-{room_number}"
+        ign_slug = ign.lower().replace(" ", "-")
+        channel_name = f"{category_slug}-{ign_slug}"
 
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True
-            ),
-            interaction.guild.me: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                manage_channels=True,
-                read_message_history=True
-            ),
-        }
-
-        if helper_role:
-            overwrites[helper_role] = discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True
+        # 1. Get or create parent text channel inside ticket_category
+        parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
+        if not parent_channel:
+            parent_overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
+            }
+            if helper_role:
+                parent_overwrites[helper_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            if config and config.get("officer_role_id"):
+                officer_role = interaction.guild.get_role(config["officer_role_id"])
+                if officer_role:
+                    parent_overwrites[officer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            
+            parent_channel = await interaction.guild.create_text_channel(
+                name="active-tickets",
+                category=ticket_category,
+                overwrites=parent_overwrites,
+                reason="Parent channel for active ticket threads"
             )
 
-        channel = await interaction.guild.create_text_channel(
+        # 2. Grant temporary view permission to requester on `#active-tickets` parent channel
+        try:
+            await parent_channel.set_permissions(interaction.user, view_channel=True, send_messages=False)
+        except Exception as e:
+            print(f"Failed to set temporary permission for requester: {e}")
+
+        # 3. Create a public thread inside `#active-tickets`
+        channel = await parent_channel.create_thread(
             name=channel_name,
-            category=ticket_category,
-            overwrites=overwrites,
-            reason="Combined ultra ticket created"
+            type=discord.ChannelType.public_thread,
+            reason="Combined ultra ticket thread created"
         )
+
+        # 4. Add the requester explicitly to the thread
+        try:
+            await channel.add_user(interaction.user)
+        except Exception as e:
+            print(f"Failed to add requester to thread: {e}")
 
         await execute(
             """
@@ -595,36 +667,49 @@ class HardFarmModal(discord.ui.Modal, title="Hard Farm / Others Ticket"):
             if room_number not in used_numbers:
                 break
 
-        channel_name = f"ticket-hardfarm-{room_number}"
+        category_slug = "hard-farm"
+        ign_slug = str(self.ign.value).lower().replace(" ", "-")
+        channel_name = f"{category_slug}-{ign_slug}"
 
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True
-            ),
-            interaction.guild.me: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                manage_channels=True,
-                read_message_history=True
-            ),
-        }
-
-        if helper_role:
-            overwrites[helper_role] = discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True
+        # 1. Get or create parent text channel inside ticket_category
+        parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
+        if not parent_channel:
+            parent_overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
+            }
+            if helper_role:
+                parent_overwrites[helper_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            if config and config.get("officer_role_id"):
+                officer_role = interaction.guild.get_role(config["officer_role_id"])
+                if officer_role:
+                    parent_overwrites[officer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+            
+            parent_channel = await interaction.guild.create_text_channel(
+                name="active-tickets",
+                category=ticket_category,
+                overwrites=parent_overwrites,
+                reason="Parent channel for active ticket threads"
             )
 
-        channel = await interaction.guild.create_text_channel(
+        # 2. Grant temporary view permission to requester on `#active-tickets` parent channel
+        try:
+            await parent_channel.set_permissions(interaction.user, view_channel=True, send_messages=False)
+        except Exception as e:
+            print(f"Failed to set temporary permission for requester: {e}")
+
+        # 3. Create a public thread inside `#active-tickets`
+        channel = await parent_channel.create_thread(
             name=channel_name,
-            category=ticket_category,
-            overwrites=overwrites,
-            reason="Hard Farm/Others ticket created"
+            type=discord.ChannelType.public_thread,
+            reason="Hard Farm/Others ticket thread created"
         )
+
+        # 4. Add the requester explicitly to the thread
+        try:
+            await channel.add_user(interaction.user)
+        except Exception as e:
+            print(f"Failed to add requester to thread: {e}")
 
         await execute(
             """
@@ -940,9 +1025,12 @@ class RemoveHelperSelect(discord.ui.Select):
         # Forcefully remove view permissions for this helper on this ticket channel
         if member:
             try:
-                await interaction.channel.set_permissions(member, view_channel=False)
+                if isinstance(interaction.channel, discord.Thread):
+                    await interaction.channel.remove_user(member)
+                else:
+                    await interaction.channel.set_permissions(member, view_channel=False)
             except Exception as e:
-                print(f"Failed to set view_channel=False for demoted helper {removed_user_id}: {e}")
+                print(f"Failed to remove demoted helper {removed_user_id} from ticket channel/thread: {e}")
 
         # Edit the ephemeral select message to clear/dismiss the select menu
         role_status_str = "and had their **Helper role** removed" if helper_role_removed else "(failed to remove Helper role, check role hierarchy)"
@@ -1194,6 +1282,12 @@ class TicketControlView(discord.ui.View):
         )
 
         helper_count = len(helper_ids) + 1
+
+        if isinstance(interaction.channel, discord.Thread):
+            try:
+                await interaction.channel.add_user(interaction.user)
+            except Exception as e:
+                print(f"Failed to add helper to thread: {e}")
 
         await interaction.response.send_message(
             f"✅ {interaction.user.mention} joined as helper.\n"
@@ -1461,6 +1555,10 @@ class TicketControlView(discord.ui.View):
             )
 
             await cleanup_ticket(ticket_data["id"])
+            try:
+                await remove_requester_overwrite(interaction.guild, ticket_data["requester_id"], ticket_data["id"])
+            except Exception as e:
+                print(f"Failed to remove requester overwrite on cancel: {e}")
 
             update_daily_stats(
                 status="cancelled",
@@ -1475,9 +1573,7 @@ class TicketControlView(discord.ui.View):
                 "No points were given."
             )
 
-            await interaction.channel.delete(
-                reason="Ticket cancelled"
-            )
+            await close_ticket_channel(interaction.channel, "Ticket cancelled")
 
             return
 
@@ -1605,6 +1701,10 @@ class TicketControlView(discord.ui.View):
 
         # Cleanup
         await cleanup_ticket(ticket_data["id"])
+        try:
+            await remove_requester_overwrite(interaction.guild, requester_id, ticket_data["id"])
+        except Exception as e:
+            print(f"Failed to remove requester overwrite on completion: {e}")
 
         update_daily_stats(
             status="completed",
@@ -1640,9 +1740,7 @@ class TicketControlView(discord.ui.View):
             print(f"[LEADERBOARD] Failed to update leaderboard: {e}")
 
         try:
-            await interaction.channel.delete(
-                reason="Ticket completed"
-            )
+            await close_ticket_channel(interaction.channel, "Ticket completed")
         except Exception:
             pass
 
@@ -1837,8 +1935,6 @@ class Tickets(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-        if not hasattr(message.channel, "name") or not message.channel.name.startswith("ticket-"):
-            return
         ticket = await get_active_ticket_by_channel(message.channel.id)
         if ticket:
             await update_ticket_activity(ticket["id"])
@@ -1871,9 +1967,7 @@ class Tickets(commands.Cog):
             channel = None
 
             for g in self.bot.guilds:
-                channel = g.get_channel(
-                    int(data["channel_id"])
-                )
+                channel = g.get_channel(int(data["channel_id"])) or g.get_thread(int(data["channel_id"]))
 
                 if channel:
                     break
@@ -1924,6 +2018,13 @@ class Tickets(commands.Cog):
                     pass
 
                 await cleanup_ticket(data["id"])
+                
+                guild_ref = channel.guild if hasattr(channel, "guild") else None
+                if guild_ref:
+                    try:
+                        await remove_requester_overwrite(guild_ref, data["requester_id"], data["id"])
+                    except Exception as e:
+                        print(f"Failed to remove requester overwrite on auto-close: {e}")
 
                 update_daily_stats(
                     status="cancelled",
@@ -1934,9 +2035,7 @@ class Tickets(commands.Cog):
                 )
 
                 try:
-                    await channel.delete(
-                        reason="Inactive for 2 hours"
-                    )
+                    await close_ticket_channel(channel, "Inactive for 2 hours")
                 except:
                     pass
 
