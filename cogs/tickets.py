@@ -32,10 +32,21 @@ async def remove_requester_overwrite(guild, requester_id, ticket_id):
         return
     
     ticket_category = guild.get_channel(config["ticket_category_id"])
-    if not ticket_category:
-        return
+    
+    # 1. Fetch parent channel from config or fallback to active-tickets inside category
+    parent_channel = None
+    active_channel_id = config.get("active_tickets_channel_id")
+    if active_channel_id:
+        parent_channel = guild.get_channel(active_channel_id)
+        if not parent_channel:
+            try:
+                parent_channel = await guild.fetch_channel(active_channel_id)
+            except Exception:
+                parent_channel = None
+
+    if not parent_channel and ticket_category:
+        parent_channel = discord.utils.get(guild.text_channels, name="active-tickets", category=ticket_category)
         
-    parent_channel = discord.utils.get(guild.text_channels, name="active-tickets", category=ticket_category)
     if not parent_channel:
         return
         
@@ -441,25 +452,36 @@ class ActivityMultiSelect(discord.ui.Select):
         channel_name = f"{category_slug}-{ign_slug}"
 
         # 1. Get or create parent text channel inside ticket_category
-        parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
+        parent_channel = None
+        active_channel_id = config.get("active_tickets_channel_id")
+        if active_channel_id:
+            parent_channel = interaction.guild.get_channel(active_channel_id)
+            if not parent_channel:
+                try:
+                    parent_channel = await interaction.guild.fetch_channel(active_channel_id)
+                except Exception:
+                    parent_channel = None
+
         if not parent_channel:
-            parent_overwrites = {
-                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
-            }
-            if helper_role:
-                parent_overwrites[helper_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
-            if config and config.get("officer_role_id"):
-                officer_role = interaction.guild.get_role(config["officer_role_id"])
-                if officer_role:
-                    parent_overwrites[officer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
-            
-            parent_channel = await interaction.guild.create_text_channel(
-                name="active-tickets",
-                category=ticket_category,
-                overwrites=parent_overwrites,
-                reason="Parent channel for active ticket threads"
-            )
+            parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
+            if not parent_channel:
+                parent_overwrites = {
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
+                }
+                if helper_role:
+                    parent_overwrites[helper_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+                if config and config.get("officer_role_id"):
+                    officer_role = interaction.guild.get_role(config["officer_role_id"])
+                    if officer_role:
+                        parent_overwrites[officer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+                
+                parent_channel = await interaction.guild.create_text_channel(
+                    name="active-tickets",
+                    category=ticket_category,
+                    overwrites=parent_overwrites,
+                    reason="Parent channel for active ticket threads"
+                )
 
         # 2. Grant temporary view permission to requester on `#active-tickets` parent channel
         try:
@@ -672,25 +694,36 @@ class HardFarmModal(discord.ui.Modal, title="Hard Farm / Others Ticket"):
         channel_name = f"{category_slug}-{ign_slug}"
 
         # 1. Get or create parent text channel inside ticket_category
-        parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
+        parent_channel = None
+        active_channel_id = config.get("active_tickets_channel_id")
+        if active_channel_id:
+            parent_channel = interaction.guild.get_channel(active_channel_id)
+            if not parent_channel:
+                try:
+                    parent_channel = await interaction.guild.fetch_channel(active_channel_id)
+                except Exception:
+                    parent_channel = None
+
         if not parent_channel:
-            parent_overwrites = {
-                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
-            }
-            if helper_role:
-                parent_overwrites[helper_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
-            if config and config.get("officer_role_id"):
-                officer_role = interaction.guild.get_role(config["officer_role_id"])
-                if officer_role:
-                    parent_overwrites[officer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
-            
-            parent_channel = await interaction.guild.create_text_channel(
-                name="active-tickets",
-                category=ticket_category,
-                overwrites=parent_overwrites,
-                reason="Parent channel for active ticket threads"
-            )
+            parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
+            if not parent_channel:
+                parent_overwrites = {
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
+                }
+                if helper_role:
+                    parent_overwrites[helper_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+                if config and config.get("officer_role_id"):
+                    officer_role = interaction.guild.get_role(config["officer_role_id"])
+                    if officer_role:
+                        parent_overwrites[officer_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+                
+                parent_channel = await interaction.guild.create_text_channel(
+                    name="active-tickets",
+                    category=ticket_category,
+                    overwrites=parent_overwrites,
+                    reason="Parent channel for active ticket threads"
+                )
 
         # 2. Grant temporary view permission to requester on `#active-tickets` parent channel
         try:
@@ -1928,6 +1961,14 @@ class Tickets(commands.Cog):
         )
         print("[DATABASE] Verified leaderboard_config SQL table schema")
 
+        # Dynamically add active_tickets_channel_id to ticket_config if not present
+        try:
+            await execute("ALTER TABLE ticket_config ADD COLUMN active_tickets_channel_id bigint(20) DEFAULT NULL;")
+            print("[DATABASE] Successfully verified/added active_tickets_channel_id column in ticket_config table")
+        except Exception as e:
+            # Column likely already exists
+            pass
+
     def cog_unload(self):
         self.auto_close_inactive_tickets.cancel()
 
@@ -2048,7 +2089,8 @@ class Tickets(commands.Cog):
         helper_role="Role allowed to join as helper",
         bonus_role="Role that gets extra points",
         ticket_category="Category where ticket channels will be created",
-        log_channel="Channel for completed ticket logs"
+        log_channel="Channel for completed ticket logs",
+        active_tickets_channel="Optional: Specific text channel where active ticket threads will be created"
     )
     async def ticketsetup(
         self,
@@ -2057,7 +2099,8 @@ class Tickets(commands.Cog):
         helper_role: discord.Role,
         bonus_role: discord.Role,
         ticket_category: discord.CategoryChannel,
-        log_channel: discord.TextChannel
+        log_channel: discord.TextChannel,
+        active_tickets_channel: discord.TextChannel = None
     ):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message(
@@ -2075,16 +2118,18 @@ class Tickets(commands.Cog):
                 helper_role_id,
                 bonus_role_id,
                 ticket_category_id,
-                ticket_log_channel_id
+                ticket_log_channel_id,
+                active_tickets_channel_id
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
 
             ON DUPLICATE KEY UPDATE
                 officer_role_id = VALUES(officer_role_id),
                 helper_role_id = VALUES(helper_role_id),
                 bonus_role_id = VALUES(bonus_role_id),
                 ticket_category_id = VALUES(ticket_category_id),
-                ticket_log_channel_id = VALUES(ticket_log_channel_id)
+                ticket_log_channel_id = VALUES(ticket_log_channel_id),
+                active_tickets_channel_id = VALUES(active_tickets_channel_id)
             """,
             (
                 interaction.guild.id,
@@ -2092,7 +2137,8 @@ class Tickets(commands.Cog):
                 helper_role.id,
                 bonus_role.id,
                 ticket_category.id,
-                log_channel.id
+                log_channel.id,
+                active_tickets_channel.id if active_tickets_channel else None
             )
         )
 

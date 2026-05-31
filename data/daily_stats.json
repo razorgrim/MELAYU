@@ -70,16 +70,17 @@
     },
     "2026-05-31": {
         "completed_tickets": 0,
-        "cancelled_tickets": 4,
+        "cancelled_tickets": 8,
         "total_points_given": 0,
         "helpers": {},
         "requesters": {
             "582945457865621513": 0
         },
         "activities": {
-            "UltraDarkon": 2,
+            "UltraDarkon": 5,
             "UltraEzrajal": 1,
-            "VoidNightbane": 1
+            "VoidNightbane": 1,
+            "KathoolDepths": 1
         }
     }
 }
