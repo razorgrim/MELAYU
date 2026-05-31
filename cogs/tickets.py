@@ -1088,7 +1088,7 @@ class RemoveHelperSelect(discord.ui.Select):
                     f"**Officer:** {interaction.user.mention}\n"
                     f"**Demoted User:** <@{removed_user_id}> ({removed_user_id})\n"
                     f"**Action:** Helper role removed and user purged from active helper queues.\n"
-                    f"**Ticket Channel:** {interaction.channel.mention}"
+                    f"**Ticket Channel:** {interaction.channel.mention} ([Jump to Thread]({interaction.channel.jump_url}))"
                 ),
                 discord.Color.red()
             )
@@ -1580,7 +1580,7 @@ class TicketControlView(discord.ui.View):
                 "🔒 Ticket Cancelled",
                 (
                     f"**Closed by:** {interaction.user.mention}\n"
-                    f"**Ticket:** `{interaction.channel.name}`\n"
+                    f"**Ticket:** {interaction.channel.mention} ([Jump to Thread]({interaction.channel.jump_url}))\n"
                     f"**Activity:** {ticket_data['activity']}\n"
                     f"**Points Given:** `0`"
                 ),
@@ -1752,7 +1752,7 @@ class TicketControlView(discord.ui.View):
             "🏆 Ticket Completed",
             (
                 f"**Closed by:** {interaction.user.mention}\n"
-                f"**Ticket:** `{interaction.channel.name}`\n"
+                f"**Ticket:** {interaction.channel.mention} ([Jump to Thread]({interaction.channel.jump_url}))\n"
                 f"**Activity:** {ticket_data['activity']}\n\n"
                 f"**Requester:** {requester_mention}\n"
                 f"**Helpers:** {', '.join(helper_mentions)}\n\n"
