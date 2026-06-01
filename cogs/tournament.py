@@ -135,6 +135,14 @@ class PvPTournament(commands.Cog):
         self.bot = bot
         self.bot.add_view(PvPRegisterView())
 
+    async def cog_load(self):
+        try:
+            await execute("ALTER TABLE tournament_players ADD COLUMN thread_id bigint(20) DEFAULT NULL")
+            print("[PvP] Added thread_id column to tournament_players")
+        except Exception as e:
+            pass
+
+
     async def get_player_name(self, guild_id, user_id):
         if not user_id:
             return "BYE 💤"
@@ -143,6 +151,77 @@ class PvPTournament(commands.Cog):
             (guild_id, user_id)
         )
         return player["ign"] if player else f"User {user_id}"
+
+    async def create_private_pvp_thread(self, guild, channel, player_user_id, player_ign):
+        try:
+            # 1. Create a private thread inside the channel
+            thread = await channel.create_thread(
+                name=f"🔒-pvp-{player_ign}",
+                type=discord.ChannelType.private_thread,
+                reason=f"Private PvP thread for contestant {player_ign}"
+            )
+            
+            # 2. Add the contestant explicitly
+            member = guild.get_member(player_user_id)
+            if not member:
+                try:
+                    member = await guild.fetch_member(player_user_id)
+                except Exception:
+                    pass
+            if member:
+                await thread.add_user(member)
+                
+            # 3. Fetch officer role from ticket config to mention them/notify them
+            from cogs.tickets import get_server_config
+            ticket_config = await get_server_config(guild.id)
+            officer_role = None
+            if ticket_config and ticket_config.get("officer_role_id"):
+                officer_role = guild.get_role(ticket_config["officer_role_id"])
+                
+            # 4. Send initial welcome embed
+            embed = discord.Embed(
+                title=f"⚔️ Private PvP Thread - {player_ign}",
+                description=(
+                    f"Welcome to your private PvP tournament thread, {member.mention if member else player_ign}!\n\n"
+                    f"• **Contestant:** {member.mention if member else player_ign} (`{player_ign}`)\n"
+                    f"• **Status:** Registered & Seeded\n\n"
+                    f"This private thread is for coordinating your matches and viewing match records. "
+                    f"Officers will record match scores here and update your brackets."
+                ),
+                color=discord.Color.gold()
+            )
+            embed.set_thumbnail(url="https://imgur.com/ILiLVM7.png")
+            embed.set_footer(text="AQW MELAYU • PvP Season 1")
+            
+            mention_str = ""
+            if officer_role:
+                mention_str = f"{officer_role.mention} "
+            if member:
+                mention_str += f"{member.mention}"
+                
+            await thread.send(content=mention_str, embed=embed)
+            return thread.id
+        except Exception as e:
+            print(f"Failed to create private PvP thread for {player_ign}: {e}")
+            return None
+
+    async def archive_all_pvp_threads(self, guild, guild_id):
+        players = await fetchall(
+            "SELECT thread_id FROM tournament_players WHERE guild_id = %s",
+            (guild_id,)
+        )
+        for p in players:
+            if p.get("thread_id"):
+                try:
+                    thread = guild.get_thread(p["thread_id"])
+                    if not thread:
+                        thread = await guild.fetch_channel(p["thread_id"])
+                    if thread:
+                        await thread.edit(locked=True, archived=True, reason="PvP Tournament Reset/Re-setup")
+                except Exception as e:
+                    print(f"Failed to archive thread {p['thread_id']}: {e}")
+
+
 
     async def update_dashboard(self, guild_id):
         config = await fetchone(
@@ -415,6 +494,9 @@ class PvPTournament(commands.Cog):
 
         guild_id = interaction.guild_id
 
+        # Archive any active threads before deleting database configuration
+        await self.archive_all_pvp_threads(interaction.guild, guild_id)
+
         # 2. Delete any existing configuration to prevent orphan dashboards
         await execute("DELETE FROM tournament_matches WHERE guild_id = %s", (guild_id,))
         await execute("DELETE FROM tournament_players WHERE guild_id = %s", (guild_id,))
@@ -544,6 +626,20 @@ class PvPTournament(commands.Cog):
         # Resolve any BYE matchups automatically
         await self.check_and_resolve_byes(guild_id, limit)
 
+        # Create private threads for contestants
+        for player in players:
+            thread_id = await self.create_private_pvp_thread(
+                interaction.guild,
+                interaction.channel,
+                player["user_id"],
+                player["ign"]
+            )
+            if thread_id:
+                await execute(
+                    "UPDATE tournament_players SET thread_id = %s WHERE guild_id = %s AND user_id = %s",
+                    (thread_id, guild_id, player["user_id"])
+                )
+
         # Lock registration state
         await execute(
             "UPDATE tournament_config SET status = 'ongoing' WHERE guild_id = %s",
@@ -647,6 +743,53 @@ class PvPTournament(commands.Cog):
         # Resolve any newly created BYEs recursively
         await self.check_and_resolve_byes(guild_id, limit)
 
+        # Post match record to contestant threads
+        p1_db = await fetchone(
+            "SELECT * FROM tournament_players WHERE guild_id = %s AND user_id = %s",
+            (guild_id, match["player1_id"])
+        )
+        p2_db = await fetchone(
+            "SELECT * FROM tournament_players WHERE guild_id = %s AND user_id = %s",
+            (guild_id, match["player2_id"])
+        )
+        
+        round_name = f"Round {match['round']}"
+        p1_name = p1_db["ign"] if p1_db else "BYE"
+        p2_name = p2_db["ign"] if p2_db else "BYE"
+        
+        embed = discord.Embed(
+            title="⚔️ PvP Match Record Updated",
+            description=f"An Officer has recorded the results for Match `{match_id}`.",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Match ID", value=f"`{match_id}`", inline=True)
+        embed.add_field(name="Round", value=f"`{round_name}`", inline=True)
+        embed.add_field(name="Matchup", value=f"`{p1_name}` vs `{p2_name}`", inline=False)
+        embed.add_field(name="Score", value=f"**`{p1_score} - {p2_score}`**", inline=True)
+        winner_display = p1_db["ign"] if winner_id == match["player1_id"] else (p2_db["ign"] if p2_db else "BYE")
+        embed.add_field(name="Winner", value=f"👑 **`{winner_display}`**", inline=True)
+        embed.set_footer(text="AQW MELAYU • Live brackets updated")
+
+        for player_db in [p1_db, p2_db]:
+            if player_db and player_db.get("thread_id"):
+                try:
+                    thread = interaction.guild.get_thread(player_db["thread_id"])
+                    if not thread:
+                        thread = await interaction.guild.fetch_channel(player_db["thread_id"])
+                    if thread:
+                        player_id = player_db["user_id"]
+                        if winner_id == player_id:
+                            status_msg = f"🎉 **Congratulations! You have won this match and advanced to the next round!**"
+                        else:
+                            status_msg = f"❌ **You have been eliminated from the tournament. Thank you for participating!**"
+                        
+                        await thread.send(
+                            content=status_msg,
+                            embed=embed
+                        )
+                except Exception as e:
+                    print(f"Failed to post match record to thread for player {player_db['ign']}: {e}")
+
         # Check if tournament is completely completed (final match has winner)
         final_match_id = limit - 1
         final_match = await fetchone(
@@ -680,6 +823,9 @@ class PvPTournament(commands.Cog):
 
         guild_id = interaction.guild_id
         
+        # Archive all active contestant threads before clearing database config
+        await self.archive_all_pvp_threads(interaction.guild, guild_id)
+
         await execute("DELETE FROM tournament_matches WHERE guild_id = %s", (guild_id,))
         await execute("DELETE FROM tournament_players WHERE guild_id = %s", (guild_id,))
         await execute("DELETE FROM tournament_config WHERE guild_id = %s", (guild_id,))
