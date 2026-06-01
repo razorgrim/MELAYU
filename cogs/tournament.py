@@ -136,11 +136,19 @@ class PvPTournament(commands.Cog):
         self.bot.add_view(PvPRegisterView())
 
     async def cog_load(self):
+        # 1. Ensure thread_id column exists in tournament_players (legacy check)
         try:
             await execute("ALTER TABLE tournament_players ADD COLUMN thread_id bigint(20) DEFAULT NULL")
-            print("[PvP] Added thread_id column to tournament_players")
-        except Exception as e:
+        except Exception:
             pass
+
+        # 2. Ensure thread_id column exists in tournament_matches
+        try:
+            await execute("ALTER TABLE tournament_matches ADD COLUMN thread_id bigint(20) DEFAULT NULL")
+            print("[PvP] Added thread_id column to tournament_matches")
+        except Exception:
+            pass
+
 
 
     async def get_player_name(self, guild_id, user_id):
@@ -152,24 +160,30 @@ class PvPTournament(commands.Cog):
         )
         return player["ign"] if player else f"User {user_id}"
 
-    async def create_private_pvp_thread(self, guild, channel, player_user_id, player_ign):
+    async def create_match_thread(self, guild, channel, match_id, round_num, p1_id, p2_id):
         try:
+            p1_ign = await self.get_player_name(guild.id, p1_id)
+            p2_ign = await self.get_player_name(guild.id, p2_id)
+            
             # 1. Create a private thread inside the channel
+            thread_name = f"🔒-match-{match_id}-{p1_ign}-vs-{p2_ign}"
             thread = await channel.create_thread(
-                name=f"🔒-pvp-{player_ign}",
+                name=thread_name,
                 type=discord.ChannelType.private_thread,
-                reason=f"Private PvP thread for contestant {player_ign}"
+                reason=f"Private PvP thread for Match {match_id}"
             )
             
-            # 2. Add the contestant explicitly
-            member = guild.get_member(player_user_id)
-            if not member:
-                try:
-                    member = await guild.fetch_member(player_user_id)
-                except Exception:
-                    pass
-            if member:
-                await thread.add_user(member)
+            # 2. Add both contestants explicitly
+            for p_id in [p1_id, p2_id]:
+                if p_id:
+                    member = guild.get_member(p_id)
+                    if not member:
+                        try:
+                            member = await guild.fetch_member(p_id)
+                        except Exception:
+                            pass
+                    if member:
+                        await thread.add_user(member)
                 
             # 3. Fetch officer role from ticket config to mention them/notify them
             from cogs.tickets import get_server_config
@@ -180,46 +194,72 @@ class PvPTournament(commands.Cog):
                 
             # 4. Send initial welcome embed
             embed = discord.Embed(
-                title=f"⚔️ Private PvP Thread - {player_ign}",
+                title=f"⚔️ Match {match_id} - Round {round_num}",
                 description=(
-                    f"Welcome to your private PvP tournament thread, {member.mention if member else player_ign}!\n\n"
-                    f"• **Contestant:** {member.mention if member else player_ign} (`{player_ign}`)\n"
-                    f"• **Status:** Registered & Seeded\n\n"
-                    f"This private thread is for coordinating your matches and viewing match records. "
-                    f"Officers will record match scores here and update your brackets."
+                    f"Welcome to the private PvP match thread for **Match {match_id}**!\n\n"
+                    f"• **Player 1:** `{p1_ign}` (<@{p1_id}>)\n"
+                    f"• **Player 2:** `{p2_ign}` (<@{p2_id}>)\n\n"
+                    f"Please coordinate your duel coordinates and details here. "
+                    f"Officers will record the winner of this match using `/pvp_setwinner`."
                 ),
                 color=discord.Color.gold()
             )
             embed.set_thumbnail(url="https://imgur.com/ILiLVM7.png")
-            embed.set_footer(text="AQW MELAYU • PvP Season 1")
+            embed.set_footer(text="AQW MELAYU • PvP Arena")
             
             mention_str = ""
             if officer_role:
-                mention_str = f"{officer_role.mention} "
-            if member:
-                mention_str += f"{member.mention}"
+                mention_str += f"{officer_role.mention} "
+            mention_str += f"<@{p1_id}> <@{p2_id}>"
                 
             await thread.send(content=mention_str, embed=embed)
             return thread.id
         except Exception as e:
-            print(f"Failed to create private PvP thread for {player_ign}: {e}")
+            print(f"Failed to create private match thread for Match {match_id}: {e}")
             return None
 
-    async def archive_all_pvp_threads(self, guild, guild_id):
-        players = await fetchall(
-            "SELECT thread_id FROM tournament_players WHERE guild_id = %s",
+    async def check_and_create_pending_match_threads(self, guild, channel, guild_id):
+        # Find all active/pending matches that don't have a thread created yet
+        matches = await fetchall(
+            "SELECT * FROM tournament_matches WHERE guild_id = %s AND winner_id IS NULL AND thread_id IS NULL",
             (guild_id,)
         )
-        for p in players:
-            if p.get("thread_id"):
+        for match in matches:
+            p1 = match["player1_id"]
+            p2 = match["player2_id"]
+            
+            # We only create a thread if both players are determined and neither is a BYE (0)
+            if p1 is not None and p1 != 0 and p2 is not None and p2 != 0:
+                thread_id = await self.create_match_thread(
+                    guild,
+                    channel,
+                    match["match_id"],
+                    match["round"],
+                    p1,
+                    p2
+                )
+                if thread_id:
+                    await execute(
+                        "UPDATE tournament_matches SET thread_id = %s WHERE guild_id = %s AND match_id = %s",
+                        (thread_id, guild_id, match["match_id"])
+                    )
+
+    async def archive_all_pvp_threads(self, guild, guild_id):
+        matches = await fetchall(
+            "SELECT thread_id FROM tournament_matches WHERE guild_id = %s",
+            (guild_id,)
+        )
+        for m in matches:
+            if m.get("thread_id"):
                 try:
-                    thread = guild.get_thread(p["thread_id"])
+                    thread = guild.get_thread(m["thread_id"])
                     if not thread:
-                        thread = await guild.fetch_channel(p["thread_id"])
+                        thread = await guild.fetch_channel(m["thread_id"])
                     if thread:
                         await thread.edit(locked=True, archived=True, reason="PvP Tournament Reset/Re-setup")
                 except Exception as e:
-                    print(f"Failed to archive thread {p['thread_id']}: {e}")
+                    print(f"Failed to archive thread {m['thread_id']}: {e}")
+
 
 
 
@@ -626,19 +666,9 @@ class PvPTournament(commands.Cog):
         # Resolve any BYE matchups automatically
         await self.check_and_resolve_byes(guild_id, limit)
 
-        # Create private threads for contestants
-        for player in players:
-            thread_id = await self.create_private_pvp_thread(
-                interaction.guild,
-                interaction.channel,
-                player["user_id"],
-                player["ign"]
-            )
-            if thread_id:
-                await execute(
-                    "UPDATE tournament_players SET thread_id = %s WHERE guild_id = %s AND user_id = %s",
-                    (thread_id, guild_id, player["user_id"])
-                )
+        # Create private threads for Round 1 matches that are ready (have two real players)
+        await self.check_and_create_pending_match_threads(interaction.guild, interaction.channel, guild_id)
+
 
         # Lock registration state
         await execute(
@@ -743,52 +773,47 @@ class PvPTournament(commands.Cog):
         # Resolve any newly created BYEs recursively
         await self.check_and_resolve_byes(guild_id, limit)
 
-        # Post match record to contestant threads
-        p1_db = await fetchone(
-            "SELECT * FROM tournament_players WHERE guild_id = %s AND user_id = %s",
-            (guild_id, match["player1_id"])
-        )
-        p2_db = await fetchone(
-            "SELECT * FROM tournament_players WHERE guild_id = %s AND user_id = %s",
-            (guild_id, match["player2_id"])
-        )
-        
-        round_name = f"Round {match['round']}"
-        p1_name = p1_db["ign"] if p1_db else "BYE"
-        p2_name = p2_db["ign"] if p2_db else "BYE"
-        
-        embed = discord.Embed(
-            title="⚔️ PvP Match Record Updated",
-            description=f"An Officer has recorded the results for Match `{match_id}`.",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Match ID", value=f"`{match_id}`", inline=True)
-        embed.add_field(name="Round", value=f"`{round_name}`", inline=True)
-        embed.add_field(name="Matchup", value=f"`{p1_name}` vs `{p2_name}`", inline=False)
-        embed.add_field(name="Score", value=f"**`{p1_score} - {p2_score}`**", inline=True)
-        winner_display = p1_db["ign"] if winner_id == match["player1_id"] else (p2_db["ign"] if p2_db else "BYE")
-        embed.add_field(name="Winner", value=f"👑 **`{winner_display}`**", inline=True)
-        embed.set_footer(text="AQW MELAYU • Live brackets updated")
+        # Post match record to the specific match thread and archive it
+        if match.get("thread_id"):
+            try:
+                thread = interaction.guild.get_thread(match["thread_id"])
+                if not thread:
+                    thread = await interaction.guild.fetch_channel(match["thread_id"])
+                if thread:
+                    p1_db = await fetchone(
+                        "SELECT * FROM tournament_players WHERE guild_id = %s AND user_id = %s",
+                        (guild_id, match["player1_id"])
+                    )
+                    p2_db = await fetchone(
+                        "SELECT * FROM tournament_players WHERE guild_id = %s AND user_id = %s",
+                        (guild_id, match["player2_id"])
+                    )
+                    round_name = f"Round {match['round']}"
+                    p1_name = p1_db["ign"] if p1_db else "BYE"
+                    p2_name = p2_db["ign"] if p2_db else "BYE"
+                    winner_display = p1_db["ign"] if winner_id == match["player1_id"] else (p2_db["ign"] if p2_db else "BYE")
+                    
+                    embed = discord.Embed(
+                        title="🏆 MATCH RESULT RECORDED",
+                        description=f"An Officer has recorded the final results for this match. This thread is now closed.",
+                        color=discord.Color.green()
+                    )
+                    embed.add_field(name="Match ID", value=f"`{match_id}`", inline=True)
+                    embed.add_field(name="Round", value=f"`{round_name}`", inline=True)
+                    embed.add_field(name="Matchup", value=f"`{p1_name}` vs `{p2_name}`", inline=False)
+                    embed.add_field(name="Score", value=f"**`{p1_score} - {p2_score}`**", inline=True)
+                    embed.add_field(name="Winner", value=f"👑 **`{winner_display}`**", inline=True)
+                    embed.set_footer(text="AQW MELAYU • PvP Arena")
 
-        for player_db in [p1_db, p2_db]:
-            if player_db and player_db.get("thread_id"):
-                try:
-                    thread = interaction.guild.get_thread(player_db["thread_id"])
-                    if not thread:
-                        thread = await interaction.guild.fetch_channel(player_db["thread_id"])
-                    if thread:
-                        player_id = player_db["user_id"]
-                        if winner_id == player_id:
-                            status_msg = f"🎉 **Congratulations! You have won this match and advanced to the next round!**"
-                        else:
-                            status_msg = f"❌ **You have been eliminated from the tournament. Thank you for participating!**"
-                        
-                        await thread.send(
-                            content=status_msg,
-                            embed=embed
-                        )
-                except Exception as e:
-                    print(f"Failed to post match record to thread for player {player_db['ign']}: {e}")
+                    await thread.send(embed=embed)
+                    
+                    # Lock and archive the thread
+                    await thread.edit(locked=True, archived=True, reason=f"Match {match_id} completed. Winner: {winner_display}")
+            except Exception as e:
+                print(f"Failed to post result/archive match thread {match['thread_id']}: {e}")
+
+        # Dynamic match thread creation for newly populated matches in subsequent rounds
+        await self.check_and_create_pending_match_threads(interaction.guild, interaction.channel, guild_id)
 
         # Check if tournament is completely completed (final match has winner)
         final_match_id = limit - 1
