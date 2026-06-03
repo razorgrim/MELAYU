@@ -132,6 +132,7 @@ ACTIVITIES = {
         "Frozenlair": 1,
         "Sevencircleswar": 1,
         "Flameusurper": 2,
+        "Lavarockshore": 2,
     },
     "TempleShrine": {
         "TempleShrine Mid": 5,
@@ -2325,7 +2326,8 @@ class Tickets(commands.Cog):
                 "• 1 Point - Deimos\n"
                 "• 1 Point - Frozenlair\n"
                 "• 1 Point - Sevencircleswar\n"
-                "• 2 Points - Flameusurper\n\n"
+                "• 2 Points - Flameusurper\n"
+                "• 2 Points - Lavarockshore\n\n"
                 "⛩️ **TempleShrine (per side/completion)**\n"
                 "• 5 Points - TempleShrine (Mid)\n"
                 "• 2 Points - TempleShrine (Left)\n"
