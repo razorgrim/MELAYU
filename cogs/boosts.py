@@ -259,6 +259,8 @@ class Boosts(commands.Cog):
                             cleaned_lines = []
                             prev_empty = False
                             for line in lines:
+                                if "log in each day for a new reward" in line.lower():
+                                    continue
                                 if line:
                                     cleaned_lines.append(line)
                                     prev_empty = False
