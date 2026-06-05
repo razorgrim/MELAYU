@@ -106,12 +106,8 @@ class Boosts(commands.Cog):
 
     async def scrape_active_events(self):
 
-        today = datetime.now().replace(
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0
-        )
+        myt = timezone(timedelta(hours=8))
+        today = datetime.now(myt)
 
         active_events = []
 
@@ -159,7 +155,7 @@ class Boosts(commands.Cog):
                 year = int("20" + match.group(3))
 
                 try:
-                    event_start = datetime(year, month, day)
+                    event_start = datetime(year, month, day, 12, 0, 0, tzinfo=myt)
 
                 except Exception:
                     continue
@@ -334,6 +330,7 @@ class Boosts(commands.Cog):
                         "title": f"{clean_title} {formatted_start_date}",
                         "duration": duration_hours,
                         "end_date": end_date_text,
+                        "end_timestamp": int(event_end.timestamp()),
                         "link": href,
                         "image": image_url,
                         "description": description_text
@@ -465,9 +462,10 @@ class Boosts(commands.Cog):
 
                 for event in active_events[:5]:
 
+                    end_val = f"<t:{event['end_timestamp']}:F> (<t:{event['end_timestamp']}:R>)" if event.get("end_timestamp") else f"**{event['end_date']}**"
                     value = (
                         f"⏳ Duration: **{event['duration']} hours**\n"
-                        f"🕧 Ends: **{event['end_date']}**\n"
+                        f"🕧 Ends: {end_val}\n"
                         f"🔗 [View Event]({event['link']})"
                     )
 
@@ -713,9 +711,10 @@ class Boosts(commands.Cog):
 
         for event in active_events[:5]:
 
+            end_val = f"<t:{event['end_timestamp']}:F> (<t:{event['end_timestamp']}:R>)" if event.get("end_timestamp") else f"**{event['end_date']}**"
             value = (
                 f"⏳ Duration: **{event['duration']} hours**\n"
-                f"📅 Ends: **{event['end_date']}**\n"
+                f"📅 Ends: {end_val}\n"
                 f"🔗 [View Event]({event['link']})"
             )
 
