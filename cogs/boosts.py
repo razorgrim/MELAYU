@@ -200,18 +200,58 @@ class Boosts(commands.Cog):
                                     const col = element.querySelector('.col-xs-12');
                                     if (!col) return '';
                                     
-                                    const clone = col.cloneNode(true);
+                                    function toMarkdown(node, parentBold = false, parentItalic = false) {
+                                        if (node.nodeType === Node.TEXT_NODE) {
+                                            return node.textContent;
+                                        }
+                                        if (node.nodeType !== Node.ELEMENT_NODE) {
+                                            return '';
+                                        }
+                                        
+                                        const tagName = node.tagName.toLowerCase();
+                                        if (tagName === 'h1' || tagName === 'script' || tagName === 'style' || tagName === 'img') {
+                                            return '';
+                                        }
+                                        
+                                        let currentBold = parentBold;
+                                        let currentItalic = parentItalic;
+                                        
+                                        if (tagName === 'strong' || tagName === 'b') {
+                                            currentBold = true;
+                                        }
+                                        if (tagName === 'em' || tagName === 'i') {
+                                            currentItalic = true;
+                                        }
+                                        
+                                        let childrenContent = '';
+                                        for (const child of node.childNodes) {
+                                            childrenContent += toMarkdown(child, currentBold, currentItalic);
+                                        }
+                                        
+                                        if (tagName === 'strong' || tagName === 'b') {
+                                            if (parentBold) return childrenContent;
+                                            const trimmed = childrenContent.trim();
+                                            return trimmed ? '**' + trimmed + '**' : '';
+                                        }
+                                        if (tagName === 'em' || tagName === 'i') {
+                                            if (parentItalic) return childrenContent;
+                                            const trimmed = childrenContent.trim();
+                                            return trimmed ? '*' + trimmed + '*' : '';
+                                        }
+                                        if (tagName === 'li') {
+                                            return '\\n• ' + childrenContent.trim();
+                                        }
+                                        if (tagName === 'br') {
+                                            return '\\n';
+                                        }
+                                        if (tagName === 'p' || tagName === 'div' || tagName === 'h2' || tagName === 'h3' || tagName === 'h4' || tagName === 'ul' || tagName === 'ol') {
+                                            return '\\n' + childrenContent.trim() + '\\n';
+                                        }
+                                        
+                                        return childrenContent;
+                                    }
                                     
-                                    const h1 = clone.querySelector('h1');
-                                    if (h1) h1.remove();
-                                    
-                                    clone.querySelectorAll('img').forEach(img => img.remove());
-                                    
-                                    clone.querySelectorAll('li').forEach(li => {
-                                        li.textContent = '• ' + li.textContent.trim();
-                                    });
-                                    
-                                    return clone.innerText.trim();
+                                    return toMarkdown(col).trim();
                                 }
                             """)
                             normalized_desc = unicodedata.normalize("NFKD", raw_desc)
