@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 import re
+import unicodedata
 from database import execute, fetchone, fetchall
 from playwright.async_api import async_playwright
 
@@ -189,6 +190,48 @@ class Boosts(commands.Cog):
                         "body"
                     ).inner_text()
 
+                    # Scrape description
+                    description_text = ""
+                    try:
+                        container = detail_page.locator("div.container.newsPost.full")
+                        if await container.count() > 0:
+                            raw_desc = await container.evaluate("""
+                                element => {
+                                    const col = element.querySelector('.col-xs-12');
+                                    if (!col) return '';
+                                    
+                                    const clone = col.cloneNode(true);
+                                    
+                                    const h1 = clone.querySelector('h1');
+                                    if (h1) h1.remove();
+                                    
+                                    clone.querySelectorAll('img').forEach(img => img.remove());
+                                    
+                                    clone.querySelectorAll('li').forEach(li => {
+                                        li.textContent = '• ' + li.textContent.trim();
+                                    });
+                                    
+                                    return clone.innerText.trim();
+                                }
+                            """)
+                            normalized_desc = unicodedata.normalize("NFKD", raw_desc)
+                            lines = [line.strip() for line in normalized_desc.split("\n")]
+                            cleaned_lines = []
+                            prev_empty = False
+                            for line in lines:
+                                if line:
+                                    cleaned_lines.append(line)
+                                    prev_empty = False
+                                else:
+                                    if not prev_empty:
+                                        cleaned_lines.append("")
+                                        prev_empty = True
+                            description_text = "\n".join(cleaned_lines).strip()
+                            if len(description_text) > 800:
+                                description_text = description_text[:797] + "..."
+                    except Exception as e:
+                        print(f"[SCRAPE WARNING] Failed to scrape description: {e}")
+
                 except Exception:
 
                     await detail_page.close()
@@ -250,7 +293,8 @@ class Boosts(commands.Cog):
                         "duration": duration_hours,
                         "end_date": end_date_text,
                         "link": href,
-                        "image": image_url
+                        "image": image_url,
+                        "description": description_text
                     })
 
                 # CLOSE PAGE AFTER EVERYTHING
@@ -384,6 +428,9 @@ class Boosts(commands.Cog):
                         f"🕧 Ends: **{event['end_date']}**\n"
                         f"🔗 [View Event]({event['link']})"
                     )
+
+                    if event.get("description"):
+                        value += f"\n\n{event['description']}"
 
                     embed.add_field(
                         name=f"{get_boost_emoji(event['title'])} {event['title']}",
@@ -629,6 +676,9 @@ class Boosts(commands.Cog):
                 f"📅 Ends: **{event['end_date']}**\n"
                 f"🔗 [View Event]({event['link']})"
             )
+
+            if event.get("description"):
+                value += f"\n\n{event['description']}"
 
             embed.add_field(
                 name=f"{get_boost_emoji(event['title'])} {event['title']}",
