@@ -75,11 +75,29 @@ class Rpg(commands.Cog):
                 (message.guild.id,)
             )
             if rows:
-                mentions = [f"<@{row['user_id']}>" for row in rows]
-                ping_content = " ".join(mentions)
-                await message.channel.send(
-                    f"⚔️ **EPIC GUARD SPOTTED!** {ping_content}"
-                )
+                for row in rows:
+                    user_id = row["user_id"]
+                    member = message.guild.get_member(user_id)
+                    if not member:
+                        try:
+                            member = await message.guild.fetch_member(user_id)
+                        except Exception:
+                            try:
+                                member = await self.bot.fetch_user(user_id)
+                            except Exception:
+                                member = None
+
+                    if member:
+                        try:
+                            await member.send(
+                                f"⚔️ **EPIC GUARD SPOTTED!**\n"
+                                f"An Epic Guard was detected in **{message.guild.name}** / **#{message.channel.name}**.\n"
+                                f"🔗 **Jump to message**: {message.jump_url}"
+                            )
+                        except discord.Forbidden:
+                            print(f"[RPG WARNING] Could not send DM to {member} (DMs are closed).")
+                        except Exception as e:
+                            print(f"[RPG ERROR] Failed to send DM to {user_id}: {e}")
 
 async def setup(bot):
     await bot.add_cog(Rpg(bot))
