@@ -468,7 +468,7 @@ class ActivityMultiSelect(discord.ui.Select):
             parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
             if not parent_channel:
                 parent_overwrites = {
-                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False),
                     interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
                 }
                 if helper_role:
@@ -710,7 +710,7 @@ class HardFarmModal(discord.ui.Modal, title="Hard Farm / Others Ticket"):
             parent_channel = discord.utils.get(interaction.guild.text_channels, name="active-tickets", category=ticket_category)
             if not parent_channel:
                 parent_overwrites = {
-                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False),
                     interaction.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True, read_message_history=True, manage_threads=True),
                 }
                 if helper_role:
@@ -1271,16 +1271,6 @@ class TicketControlView(discord.ui.View):
         config = await get_server_config(
             interaction.guild.id
         )
-
-        if not user_has_role_id(
-            interaction.user,
-            config["helper_role_id"]
-        ):
-            await interaction.response.send_message(
-                "❌ You do not have the Helper role.",
-                ephemeral=True
-            )
-            return
 
         helper_ids = await get_ticket_helpers(
             ticket_data["id"]
