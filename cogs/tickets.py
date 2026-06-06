@@ -1954,35 +1954,6 @@ class Tickets(commands.Cog):
         self.bot.add_view(LeaderboardView())
         self.auto_close_inactive_tickets.start()
 
-    async def cog_load(self):
-        # Auto-create the leaderboard_config SQL table on startup for persistent message syncing
-        await execute(
-            """
-            CREATE TABLE IF NOT EXISTS `leaderboard_config` (
-                `guild_id` bigint(20) NOT NULL,
-                `channel_id` bigint(20) DEFAULT NULL,
-                `message_id` bigint(20) DEFAULT NULL,
-                PRIMARY KEY (`guild_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-        )
-        print("[DATABASE] Verified leaderboard_config SQL table schema")
-
-        # Dynamically add active_tickets_channel_id to ticket_config if not present
-        try:
-            await execute("ALTER TABLE ticket_config ADD COLUMN active_tickets_channel_id bigint(20) DEFAULT NULL;")
-            print("[DATABASE] Successfully verified/added active_tickets_channel_id column in ticket_config table")
-        except Exception as e:
-            # Column likely already exists
-            pass
-
-        # Dynamically add completed_stats_message_id to ticket_config if not present
-        try:
-            await execute("ALTER TABLE ticket_config ADD COLUMN completed_stats_message_id bigint(20) DEFAULT NULL;")
-            print("[DATABASE] Successfully verified/added completed_stats_message_id column in ticket_config table")
-        except Exception as e:
-            # Column likely already exists
-            pass
 
     async def update_completed_tickets_embed(self, guild):
         async with self.embed_lock:

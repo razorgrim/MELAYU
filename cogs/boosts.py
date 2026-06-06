@@ -6,21 +6,20 @@ import re
 import unicodedata
 from database import execute, fetchone, fetchall
 from playwright.async_api import async_playwright
+import emojis
 
 CACHE_MINUTES = 60
 
 BOOST_EMOJIS = {
-    "class": "<:ClassBoost:1505372617014775928>",
-    "exp": "<:ExpBoost:1505372494922780753>",
-    "rep": "<:RepBoost:1505372317650255984>",
-    "gold": "<:GoldBoost:1505359354780586065>",
-    "member": "<:Member:1505373039267680457>",
-    "acs": "<:Acs:1505374359445831730>",
-    "seasonal": "<:seasonaltag:1505375179923263649>",
-    "rare": "<:raretag:1505375179923263649>",
-    "legend": "<:legendtag:1505375321816436757>",
-    
-    
+    "class": emojis.CLASS_BOOST,
+    "exp": emojis.EXP_BOOST,
+    "rep": emojis.REP_BOOST,
+    "gold": emojis.GOLD_BOOST,
+    "member": emojis.MEMBER_BOOST,
+    "acs": emojis.ACS_BOOST,
+    "seasonal": emojis.SEASONAL_TAG,
+    "rare": emojis.RARE_TAG,
+    "legend": emojis.LEGEND_TAG,
 }
 
 
@@ -54,7 +53,7 @@ def get_boost_emoji(title):
     if "legend" in title:
         return BOOST_EMOJIS["legend"]
 
-    return "<:bagicon2:1505377192236814439>"
+    return emojis.BAG_ICON
 
 def format_short_date(date_obj):
     return f"{date_obj.day}.{date_obj.month}.{date_obj.year}"
@@ -550,7 +549,7 @@ class Boosts(commands.Cog):
                 )
 
                 embed.add_field(
-                    name=f"<:Member:1505373039267680457>  {day}",
+                    name=f"{emojis.MEMBER_BOOST}  {day}",
                     value=value,
                     inline=False
                 )
@@ -858,7 +857,7 @@ class Boosts(commands.Cog):
             )
 
             embed.add_field(
-                name=f"<:Member:1505373039267680457>  {day}",
+                name=f"{emojis.MEMBER_BOOST}  {day}",
                 value=value,
                 inline=False
             )

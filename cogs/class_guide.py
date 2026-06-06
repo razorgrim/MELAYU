@@ -3,6 +3,8 @@ from discord import app_commands
 from discord.ext import commands
 from database import execute, fetchone, fetchall
 import re
+import emojis
+import panel_config
 
 class ClassDropdown(discord.ui.Select):
     def __init__(self, classes, page=0, total_pages=1):
@@ -116,34 +118,6 @@ class ClassGuide(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        # Auto-create the class_guides SQL table on startup
-        await execute(
-            """
-            CREATE TABLE IF NOT EXISTS `class_guides` (
-                `guild_id` bigint(20) NOT NULL,
-                `class_name` varchar(100) NOT NULL,
-                `note` text DEFAULT NULL,
-                `enchant_non_forge` text DEFAULT NULL,
-                `enchant_solo` text DEFAULT NULL,
-                `enchant_ultra` text DEFAULT NULL,
-                `potion` text DEFAULT NULL,
-                `combo` text DEFAULT NULL,
-                PRIMARY KEY (`guild_id`, `class_name`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-        )
-        # Auto-create the class_config SQL table on startup for persistent message syncing
-        await execute(
-            """
-            CREATE TABLE IF NOT EXISTS `class_config` (
-                `guild_id` bigint(20) NOT NULL,
-                `panel_channel_id` bigint(20) DEFAULT NULL,
-                `panel_message_id` bigint(20) DEFAULT NULL,
-                PRIMARY KEY (`guild_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-        )
-        print("[DATABASE] Verified class_guides and class_config SQL table schemas")
         self.bot.add_view(ClassDropdownView([]))
         print("[CLASS PANEL] Registered persistent ClassDropdownView listener")
 
@@ -165,10 +139,10 @@ class ClassGuide(commands.Cog):
         weapon = parts[3]
         
         return (
-            f"<:helmicon:1506182631887339560> **Helm:** `{helm}`\n"
-            f"<:classicon:1506184256894926898> **Class:** `{cls}`\n"
-            f"<:capeicon:1506183156024344687> **Cape:** `{cape}`\n"
-            f"<:swordicon:1506182453398601749> **Weapon:** `{weapon}`\n"
+            f"{emojis.HELM_ICON} **Helm:** `{helm}`\n"
+            f"{emojis.CLASS_ICON} **Class:** `{cls}`\n"
+            f"{emojis.CAPE_ICON} **Cape:** `{cape}`\n"
+            f"{emojis.SWORD_ICON} **Weapon:** `{weapon}`\n"
         )
 
     @staticmethod
@@ -503,22 +477,16 @@ class ClassGuide(commands.Cog):
 
         # 3. Build panel embed and view
         embed = discord.Embed(
-            title="⚔️ AQW Class Setup Library",
-            description=(
-                "Welcome to the official **AQW Class Setup Library**!\n\n"
-                "Gunakan menu di bawah untuk select and view class guides, enchants, and attack rotations.\n\n"
-                "📌 **Categories in Guide:**\n"
-                "• **Note:** Description and usage tips\n"
-                "• **Enchantments:** 3 Types (Non-Forge, Solo, and Ultra)\n"
-                "• **Potions:** Best elixirs and tonics\n"
-                "• **Combo:** Recommended skill sequence rotations\n\n"
-                "*(Note: You can also search guides case-insensitively using `/class_guide`!)*"
-            ),
-            color=discord.Color.gold()
+            title=panel_config.CLASS_TITLE,
+            description=panel_config.CLASS_DESCRIPTION,
+            color=discord.Color(panel_config.CLASS_COLOR)
         )
         if interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
-            embed.set_footer(text=f"{interaction.guild.name} Library Panel", icon_url=interaction.guild.icon.url)
+        embed.set_footer(
+            text=panel_config.CLASS_FOOTER_TEMPLATE.format(guild_name=interaction.guild.name),
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+        )
 
         view = ClassDropdownView(classes)
         message = await target_channel.send(embed=embed, view=view)

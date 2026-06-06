@@ -5,6 +5,8 @@ from bs4 import BeautifulSoup
 from discord.ext import commands
 from discord import app_commands
 from database import execute, fetchone
+import emojis
+import panel_config
 
 COOLDOWN_SECONDS = 7200
 
@@ -519,53 +521,24 @@ class Verification(commands.Cog):
         member_role = interaction.guild.get_role(server_config["member_role_id"])
         image_url = server_config.get("image_url")
 
+        description_text = panel_config.VERIFICATION_DESCRIPTION_TEMPLATE.format(
+            adventure_role_mention=adventure_role.mention if adventure_role else '`Adventure Role`',
+            member_role_mention=member_role.mention if member_role else '`Guild Member Role`',
+            aqw_guild_name=aqw_guild_name
+        )
+
         embed = discord.Embed(
-            title="AQW Guild Verification",
-            description=(
-                "**Welcome to Community AQW MALAYSIA 🔥 **\n\n"
-                "**Rules :**\n"
-                "❗Dilarang maki / toxic\n"
-                "❗Hormat sesama bangsa\n"
-                "❗Dilarang OGs\n"
-                "❗Dilarang EGoiS\n"
-                "❗Dilarang Malu (Berpada)\n"
-                "❗Dilarang Sepuh\n\n"
-                "**Info Channel :**\n"
-                "‼️  <#1421387103874580540> - update event @ server ***AQW MALAYSIA***\n"
-                "<:peak:1506207568194834553>  <#1417856460959911937><#1476205076476329984>  - update event **photoshoot / GiveAway*AQW MALAYSIA***\n"
-                "🚨  <#1499820764155744508>  - perlukan bantuan, Just info❗ \n"
-                "<:AC:1505181977140007013>  <#1420637572698472522> - promote / jual-beli account and heromart\n\n"
-                "**Info update AQW :**\n"
-                "<:Member:1505181901462442104>   <#1416994105086705694> - Update  Server boost daily / weekly / seasonal\n"
-                "<:MELAYU:1505185518730739742>   <#1417017084407189565> - remind update / seasonal / rare item & update\n"
-                "<:armoricon:1506286259965005976>   <#1417851796155666555> - drop & merge shop update\n"
-                "<:Forge:1506289845507592252>   <#1458693247357685833>  - Enhancement detail\n\n"
-                "**Support LiveStream / Content Creator Malaysia :**\n"
-                "<:Tiktok:1506290622762455091> : mannn_aqw by <@1268595767082483832> \n"
-                "<:Tiktok:1506290622762455091> : chimikopunyayuka by <@530444863393759232> \n"
-                "<:Tiktok:1506290622762455091> : mirulz_aqw by <@1421902432308297739> \n"
-                "<:Tiktok:1506290622762455091> : ris_anime0 by <@1439948797282095125> \n\n"
-                "** Link AQW MALAYSIA COMMUNITY : **\n"
-                "<:whatsapp:1506285343618629653> Whatsapp : https://chat.whatsapp.com/I5a6BRWtdYBClgbBiSA7J5\n\n"
-                "**#AQWMALAYSIA**\n\n"
-                "Click the button below to verify your AdventureQuest Worlds character.\n\n"
-                "**How it works:**\n"
-                f"• All valid AQW players receive {adventure_role.mention if adventure_role else '`Adventure Role`'}\n"
-                f"• Players inside **{aqw_guild_name}** also receive {member_role.mention if member_role else '`Guild Member Role`'}\n\n"
-                "**Nickname Format:**\n"
-                "`nickname ● ign ● Nationality`\n\n"
-                "**Requirement:**\n"
-                "Your AQW character page must be public and accessible."
-            ),
-            color=discord.Color.green()
+            title=panel_config.VERIFICATION_TITLE,
+            description=description_text,
+            color=discord.Color(panel_config.VERIFICATION_COLOR)
         )
 
         if image_url:
             embed.set_image(url=image_url)
         else:
-            embed.set_image(url="https://i.imgur.com/vBeUbYo.jpeg")
+            embed.set_image(url=panel_config.VERIFICATION_DEFAULT_IMAGE)
 
-        embed.set_footer(text="AQW Verification System")
+        embed.set_footer(text=panel_config.VERIFICATION_FOOTER)
 
         await interaction.response.send_message(
             embed=embed,

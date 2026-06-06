@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import re
 import aiohttp
 from urllib.parse import quote_plus
+import emojis
 
 class InventoryPaginationView(discord.ui.View):
     def __init__(self, author_id, pages, embed_title, embed_url, ign, type_name):
@@ -192,7 +193,7 @@ class CheckInv(commands.Cog):
                 points = item.get("intCount", 0)
                 rank = self.get_class_rank(points)
                 formatted_lines.append(
-                    f"<:classicon:1506184256894926898> **{name}** (Rank {rank} | {points:,} CP)"
+                    f"{emojis.CLASS_ICON} **{name}** (Rank {rank} | {points:,} CP)"
                 )
         else:
             items = [item for item in inventory if item.get("strType", "").lower() == "item"]
@@ -203,7 +204,7 @@ class CheckInv(commands.Cog):
                 name = item.get("strName", "Unknown Item")
                 count = item.get("intCount", 1)
                 formatted_lines.append(
-                    f"<:bagicon:1505377192236814439> **{name}** (x{count})"
+                    f"{emojis.BAG_ICON_ALT} **{name}** (x{count})"
                 )
 
         embed_title = f"{page_ign}'s Inventory: {type.capitalize()}es" if type == "class" else f"{page_ign}'s Inventory: {type.capitalize()}s"

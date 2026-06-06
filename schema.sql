@@ -1,5 +1,3 @@
-CREATE DATABASE IF NOT EXISTS `melayu_bot` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `melayu_bot`;
 
 CREATE TABLE IF NOT EXISTS `active_tickets` (
   `id` int(11) NOT NULL,
@@ -69,11 +67,18 @@ CREATE TABLE IF NOT EXISTS `ticket_config` (
   `bonus_role_id` bigint(20) NOT NULL,
   `ticket_category_id` bigint(20) NOT NULL,
   `ticket_log_channel_id` bigint(20) NOT NULL,
+  `active_tickets_channel_id` bigint(20) DEFAULT NULL,
+  `completed_stats_message_id` bigint(20) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+CREATE TABLE IF NOT EXISTS `leaderboard_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `channel_id` bigint(20) DEFAULT NULL,
+  `message_id` bigint(20) DEFAULT NULL,
+  PRIMARY KEY (`guild_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `verification_config` (
   `guild_id` bigint(20) NOT NULL,
@@ -182,6 +187,7 @@ CREATE TABLE IF NOT EXISTS `tournament_players` (
   `user_id` bigint(20) NOT NULL,
   `ign` varchar(100) NOT NULL,
   `seed` int(11) NOT NULL,
+  `thread_id` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`guild_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -194,6 +200,7 @@ CREATE TABLE IF NOT EXISTS `tournament_matches` (
   `player1_score` int(11) DEFAULT 0,
   `player2_score` int(11) DEFAULT 0,
   `winner_id` bigint(20) DEFAULT NULL,
+  `thread_id` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`guild_id`, `match_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

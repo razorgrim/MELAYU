@@ -4,8 +4,6 @@
 -- Target Guild ID: 1403171380488568863
 -- ========================================================
 
-USE `melayu_bot`;
-
 INSERT INTO `class_guides` (`guild_id`, `class_name`, `note`, `enchant_non_forge`, `enchant_solo`, `enchant_ultra`, `potion`, `combo`) VALUES
 (1403171380488568863, 'Abyssal Angel', 'Stage: Late Game
 Use Case: Farming', 'Luck, Luck, Luck, Spiral Carve', 'Examen, Luck, Lament, Valiance | Acheron', 'Examen, Luck, Lament, Valiance | Acheron', 'Potent Honor Potion, Potent Battle Elixir, Might Tonic', 'N/A'),

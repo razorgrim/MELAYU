@@ -135,19 +135,6 @@ class PvPTournament(commands.Cog):
         self.bot = bot
         self.bot.add_view(PvPRegisterView())
 
-    async def cog_load(self):
-        # 1. Ensure thread_id column exists in tournament_players (legacy check)
-        try:
-            await execute("ALTER TABLE tournament_players ADD COLUMN thread_id bigint(20) DEFAULT NULL")
-        except Exception:
-            pass
-
-        # 2. Ensure thread_id column exists in tournament_matches
-        try:
-            await execute("ALTER TABLE tournament_matches ADD COLUMN thread_id bigint(20) DEFAULT NULL")
-            print("[PvP] Added thread_id column to tournament_matches")
-        except Exception:
-            pass
 
 
 

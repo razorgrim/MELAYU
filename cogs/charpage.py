@@ -7,6 +7,7 @@ import aiohttp
 from urllib.parse import quote_plus
 import math
 import datetime
+import emojis
 
 
 class CharPage(commands.Cog):
@@ -398,43 +399,43 @@ class CharPage(commands.Cog):
             data["treasure_points"] = "0"
 
         embed = discord.Embed(
-            title=f"{ign}'s char page <:Melayu:1505432584090423476>:",
+            title=f"{ign}'s char page {emojis.MELAYU_EMOJI_ALT}:",
             url=url,
             color=discord.Color.gold()
         )
 
         embed.add_field(name="🏆 Title:", value=data["title"], inline=True)
-        embed.add_field(name="<:XPBoost:1505372494922780753>Level:", value=data["level"], inline=True)
-        embed.add_field(name="<:classicon:1506184256894926898>Class:", value=data["class"], inline=True)
-        embed.add_field(name="<:swordicon:1506182453398601749>Weapon:", value=data["weapon"], inline=True)
+        embed.add_field(name=f"{emojis.EXP_BOOST}Level:", value=data["level"], inline=True)
+        embed.add_field(name=f"{emojis.CLASS_ICON}Class:", value=data["class"], inline=True)
+        embed.add_field(name=f"{emojis.SWORD_ICON}Weapon:", value=data["weapon"], inline=True)
 
-        embed.add_field(name="<:armoricon:1506182318765641738>Armor:", value=data["armor"], inline=True)
-        embed.add_field(name="<:helmicon:1506182631887339560>Helm:", value=data["helm"], inline=True)
-        embed.add_field(name="<:capeicon:1506183156024344687>Cape:", value=data["cape"], inline=True)
+        embed.add_field(name=f"{emojis.ARMOR_ICON}Armor:", value=data["armor"], inline=True)
+        embed.add_field(name=f"{emojis.HELM_ICON}Helm:", value=data["helm"], inline=True)
+        embed.add_field(name=f"{emojis.CAPE_ICON}Cape:", value=data["cape"], inline=True)
 
-        embed.add_field(name="<:peticon:1506318442590896230>Pet:", value=data["pet"], inline=True)
-        embed.add_field(name="<:acicon2:1506190761543340072>Misc:", value=data["misc"], inline=True)
+        embed.add_field(name=f"{emojis.PET_ICON}Pet:", value=data["pet"], inline=True)
+        embed.add_field(name=f"{emojis.AC_ICON_2}Misc:", value=data["misc"], inline=True)
         # Faction emoji mapping
         faction_emojis = {
-            "chaos": "<:chaosfaction:1506322127819767948>",
-            "good": "<:goodfaction:1506321915114160128>",
-            "evil": "<:evilfaction:1506322000652796104>",
-            "neutral": "<:neutralfaction:1506322065668440106>"
+            "chaos": emojis.CHAOS_FACTION,
+            "good": emojis.GOOD_FACTION,
+            "evil": emojis.EVIL_FACTION,
+            "neutral": emojis.NEUTRAL_FACTION
         }
         faction_val = data["faction"] or "None"
         faction_emoji = faction_emojis.get(faction_val.lower(), "")
         embed.add_field(name=f"{faction_emoji}Faction:", value=faction_val, inline=True)
 
-        embed.add_field(name="<:Member:1505373039267680457>Guild:", value=data["guild"], inline=True)
-        embed.add_field(name="<:charpageicon2:1506324684092866591>Character ID:", value=data["character_id"] or "None", inline=True)
+        embed.add_field(name=f"{emojis.MEMBER_BOOST}Guild:", value=data["guild"], inline=True)
+        embed.add_field(name=f"{emojis.CHARPAGE_ICON_2}Character ID:", value=data["character_id"] or "None", inline=True)
 
         embed.add_field(
-            name="<:charpageicon:1506324498943840366>Total Badges:",
+            name=f"{emojis.CHARPAGE_ICON}Total Badges:",
             value=data["total_badges"],
             inline=True
         )
         embed.add_field(
-            name="<:treasurepotionicon:1506323420906782912>Treasure Potions:",
+            name=f"{emojis.TREASURE_POTION}Treasure Potions:",
             value=data["treasure_points"],
             inline=True
         )
@@ -577,7 +578,7 @@ class CharPage(commands.Cog):
 
         # Create beautiful Embed
         embed = discord.Embed(
-            title="IoDA's Calculator <:Melayu:1505432584090423476>:",
+            title=f"IoDA's Calculator {emojis.MELAYU_EMOJI_ALT}:",
             description=f"[{ign}](<{url}>) has `{tp_current}` Treasure Potions 🍖\n\n{main_progress}",
             color=discord.Color.gold()
         )
@@ -614,9 +615,9 @@ class CharPage(commands.Cog):
 
             field_name = f"`{rate} Treasure Potions per spin`"
             field_value = (
-                f"__With <:acicon:1506189807699759176>s__\n"
-                f"**Spins:** {spins_needed} ({ac_cost:,} <:acicon:1506189807699759176>s)\n\n"
-                f"__With <:Member:1505373039267680457> daily + weekly spins__\n"
+                f"__With {emojis.AC_ICON}s__\n"
+                f"**Spins:** {spins_needed} ({ac_cost:,} {emojis.AC_ICON}s)\n\n"
+                f"__With {emojis.MEMBER_BOOST} daily + weekly spins__\n"
                 f"**Days:** {days_dw} ({weeks_dw:.1f} W/ {months_dw} M)\n"
                 f"**Due:** `{due_dw}`\n\n"
                 f"__With weekly spins only__\n"

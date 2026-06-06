@@ -1,6 +1,8 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+import emojis
+import panel_config
 
 class SelfRolesView(discord.ui.View):
     def __init__(self):
@@ -109,23 +111,23 @@ class SelfRolesView(discord.ui.View):
                         ephemeral=True
                     )
 
-    @discord.ui.button(label="Chaos", style=discord.ButtonStyle.secondary, custom_id="self_role_chaos", emoji="<:chaosfaction:1506322127819767948>")
+    @discord.ui.button(label="Chaos", style=discord.ButtonStyle.secondary, custom_id="self_role_chaos", emoji=emojis.CHAOS_FACTION)
     async def chaos_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Chaos", is_faction=True)
 
-    @discord.ui.button(label="Good", style=discord.ButtonStyle.primary, custom_id="self_role_good", emoji="<:goodfaction:1506321915114160128>")
+    @discord.ui.button(label="Good", style=discord.ButtonStyle.primary, custom_id="self_role_good", emoji=emojis.GOOD_FACTION)
     async def good_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Good", is_faction=True)
 
-    @discord.ui.button(label="Evil", style=discord.ButtonStyle.danger, custom_id="self_role_evil", emoji="<:evilfaction:1506322000652796104>")
+    @discord.ui.button(label="Evil", style=discord.ButtonStyle.danger, custom_id="self_role_evil", emoji=emojis.EVIL_FACTION)
     async def evil_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Evil", is_faction=True)
 
-    @discord.ui.button(label="Nation", style=discord.ButtonStyle.danger, custom_id="self_role_nation", emoji="<:nulgathicon:1507433966393622619>")
+    @discord.ui.button(label="Nation", style=discord.ButtonStyle.danger, custom_id="self_role_nation", emoji=emojis.NATION_FACTION)
     async def nation_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Nation", is_faction=False)
 
-    @discord.ui.button(label="Legion", style=discord.ButtonStyle.primary, custom_id="self_role_legion", emoji="<:dageicon:1507434313270951946>")
+    @discord.ui.button(label="Legion", style=discord.ButtonStyle.primary, custom_id="self_role_legion", emoji=emojis.LEGION_FACTION)
     async def legion_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.handle_role_toggle(interaction, "Legion", is_faction=False)
 
@@ -164,27 +166,13 @@ class SelfRoles(commands.Cog):
 
         # Generate a premium embed
         embed = discord.Embed(
-            title="🎭  Faction & Self Roles Selection",
-            description=(
-                "Stand with your faction or gain access to community roles! "
-                "Click the buttons below to toggle your roles.\n\n"
-                "<:charpageicon:1506324498943840366> **Factions (Choose One)**\n\n"
-                "• <:chaosfaction:1506322127819767948> **Chaos**: Embrace the storm and unpredictability.\n"
-                "• <:goodfaction:1506321915114160128> **Good**: Stand for honor, order, and justice.\n"
-                "• <:evilfaction:1506322000652796104> **Evil**: Walk in the shadows and seek dark power.\n"
-                "*(Note: Factions are mutually exclusive. Selecting a new one removes your current faction.)*\n\n"
-                "⚔️ **Special Sub-Factions**\n\n"
-                "• <:nulgathicon:1507433966393622619> **Nation**: Archfiend Nulgath's loyal follower.\n"
-                "• <:dageicon:1507434313270951946> **Legion**: Dage the Evil's Undead Legion warrior.\n\n"
-                "💼 **Community Roles**\n\n"
-                "• 🎥 **Streamer**: Get access to streamer channels & ping alerts.\n"
-                "• 🛡️ **Helper**: Join community helpers to support others."
-            ),
-            color=discord.Color.from_rgb(47, 49, 54) # Premium dark color matching Discord UI
+            title=panel_config.ROLES_TITLE,
+            description=panel_config.ROLES_DESCRIPTION,
+            color=discord.Color(panel_config.ROLES_COLOR)
         )
         if interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.set_footer(text="AQW MELAYU • Click buttons below to assign roles", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        embed.set_footer(text=panel_config.ROLES_FOOTER, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
 
         view = SelfRolesView()
         await target_channel.send(embed=embed, view=view)
