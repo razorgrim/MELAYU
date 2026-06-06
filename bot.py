@@ -25,6 +25,7 @@ async def load_cogs():
         "cogs.tournament",
         "cogs.class_guide",
         "cogs.checkinv",
+        "cogs.rpg",
     ]
 
     for cog in cogs:
