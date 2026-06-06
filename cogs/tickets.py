@@ -1997,16 +1997,62 @@ class Tickets(commands.Cog):
                 for date, data in stats.items():
                     total_completed += data.get("completed_tickets", 0)
 
+            # Extract today's daily stats
+            today = today_key()
+            today_completed = 0
+            today_cancelled = 0
+            today_points = 0
+            helper_text = "No helpers recorded today."
+            activity_text = ""
+
+            if stats and today in stats:
+                today_data = stats[today]
+                today_completed = today_data.get("completed_tickets", 0)
+                today_cancelled = today_data.get("cancelled_tickets", 0)
+                today_points = today_data.get("total_points_given", 0)
+
+                # Top helpers today
+                top_helpers = sorted(
+                    today_data.get("helpers", {}).items(),
+                    key=lambda item: item[1],
+                    reverse=True
+                )[:5]
+
+                if top_helpers:
+                    helper_text = ""
+                    for index, (user_id, points) in enumerate(top_helpers, start=1):
+                        member = guild.get_member(int(user_id))
+                        name = member.mention if member else f"<@{user_id}>"
+                        helper_text += f"**{index}.** {name} — **{points} points**\n"
+
+                # Most requested activities today
+                top_activities = sorted(
+                    today_data.get("activities", {}).items(),
+                    key=lambda item: item[1],
+                    reverse=True
+                )[:5]
+                if top_activities:
+                    activity_text = ""
+                    for activity, count in top_activities:
+                        activity_text += f"• **{activity}** — {count} ticket(s)\n"
+
             # Create beautiful premium embed
             embed = discord.Embed(
-                title="🏆 Total Tickets Completed",
+                title="🏆 Ticket Statistics Board",
                 description=(
                     f"Thank you to all our amazing helpers and members for their dedication! "
                     f"Together, we keep the server thriving. 🙌\n\n"
-                    f"✨ **Total Completed Tickets:** `{total_completed}`\n\n"
+                    f"✨ **All-Time Completed Tickets:** `{total_completed}`\n\n"
+                    f"📅 **Today's Statistics ({today}):**\n"
+                    f"• **Completed:** `{today_completed}` | **Cancelled:** `{today_cancelled}`\n"
+                    f"• **Points Distributed:** `{today_points}`\n"
                 ),
                 color=discord.Color.from_rgb(255, 215, 0)  # Gold
             )
+            embed.add_field(name="🥇 Top Helpers Today", value=helper_text, inline=True)
+            if activity_text:
+                embed.add_field(name="⚔️ Top Bosses Today", value=activity_text, inline=True)
+
             embed.set_image(url="https://i.imgur.com/vBeUbYo.jpeg")
             if guild.icon:
                 embed.set_footer(text="AQW MELAYU • Ticket Statistics", icon_url=guild.icon.url)
