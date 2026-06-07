@@ -400,6 +400,14 @@ class ServerSelect(discord.ui.Select):
             discord.SelectOption(label="Yorumi", value="Yorumi"),
             discord.SelectOption(label="Safiria", value="Safiria"),
             discord.SelectOption(label="Sir Ver", value="Sir Ver"),
+            discord.SelectOption(label="Twilly", value="Twilly"),
+            discord.SelectOption(label="Twig", value="Twig"),
+            discord.SelectOption(label="Sepulchure", value="Sepulchure"),
+            discord.SelectOption(label="Gravelyn", value="Gravelyn"),
+            discord.SelectOption(label="Swordhaven (EU)", value="Swordhaven (EU)"),
+            discord.SelectOption(label="Alteon", value="Alteon"),
+            discord.SelectOption(label="Yokai (SEA)", value="Yokai (SEA)"),
+            discord.SelectOption(label="Espada", value="Espada"),
         ]
         super().__init__(
             placeholder="Select AQW Server...",
