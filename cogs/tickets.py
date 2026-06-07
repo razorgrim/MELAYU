@@ -298,7 +298,8 @@ def update_daily_stats(status, activity, points=0, requester_id=None, helper_ids
         }
 
     if status == "completed":
-        stats[today]["completed_tickets"] += 1
+        num_activities = len([act.strip() for act in activity.split(" + ") if act.strip()]) if activity else 1
+        stats[today]["completed_tickets"] += num_activities
     elif status == "cancelled":
         stats[today]["cancelled_tickets"] += 1
 
@@ -391,45 +392,26 @@ class TicketPanelView(discord.ui.View):
         await interaction.response.send_modal(HardFarmModal())
 
 
-class ActivityMultiSelect(discord.ui.Select):
-    def __init__(self, category):
+class TicketServerModal(discord.ui.Modal):
+    def __init__(self, category, selected_activities, total_points, max_helpers, ign):
+        super().__init__(title="Select AQW Server")
         self.category = category
+        self.selected_activities = selected_activities
+        self.total_points = total_points
+        self.max_helpers = max_helpers
+        self.ign = ign
 
-        options = [
-            discord.SelectOption(
-                label=activity,
-                description=f"{points} helper point(s)"
-            )
-            for activity, points in ACTIVITIES[category].items()
-        ]
-
-        super().__init__(
-            placeholder="Select one or more activities...",
-            options=options,
-            min_values=1,
-            max_values=len(options)
+        self.server_input = discord.ui.TextInput(
+            label="AQW Server",
+            placeholder="Artix / Yorumi / Safiria",
+            default="Galanoth",
+            required=True,
+            max_length=32
         )
+        self.add_item(self.server_input)
 
-    async def callback(self, interaction: discord.Interaction):
-        # No role restriction for creating ticket
-
-        existing_ticket = await get_active_ticket_by_user(
-            interaction.guild.id,
-            interaction.user.id
-        )
-
-        if existing_ticket:
-            await interaction.response.send_message(
-                "❌ You already have an active ticket. Close it first before creating another.",
-                ephemeral=True
-            )
-            return
-
-        selected_activities = self.values
-        total_points = sum(ACTIVITIES[self.category][activity] for activity in selected_activities)
-
+    async def on_submit(self, interaction: discord.Interaction):
         config = await get_server_config(interaction.guild.id)
-
         if not config:
             await interaction.response.send_message(
                 "❌ Ticket system not setup. Admin must run /ticketsetup.",
@@ -438,8 +420,6 @@ class ActivityMultiSelect(discord.ui.Select):
             return
 
         helper_role = interaction.guild.get_role(config["helper_role_id"])
-        max_helpers = get_max_helpers(self.category, selected_activities)
-
         ticket_category = interaction.guild.get_channel(config["ticket_category_id"])
 
         if ticket_category is None:
@@ -448,7 +428,6 @@ class ActivityMultiSelect(discord.ui.Select):
                 ephemeral=True
             )
             return
-
 
         existing_rooms = await fetchall(
             """
@@ -469,15 +448,8 @@ class ActivityMultiSelect(discord.ui.Select):
             if room_number not in used_numbers:
                 break
 
-        # Get requester's IGN from verified_users table
-        verified_user = await fetchone(
-            """
-            SELECT ign FROM verified_users
-            WHERE guild_id = %s AND user_id = %s
-            """,
-            (interaction.guild.id, interaction.user.id)
-        )
-        ign = verified_user["ign"] if verified_user else interaction.user.display_name
+        server_name = self.server_input.value
+        ign = self.ign
 
         category_slug = self.category.lower().replace(" ", "-")
         ign_slug = ign.lower().replace(" ", "-")
@@ -550,6 +522,8 @@ class ActivityMultiSelect(discord.ui.Select):
                 completed,
                 helpers_locked,
                 warned,
+                ign,
+                server_name,
                 created_at,
                 last_activity
             )
@@ -557,22 +531,25 @@ class ActivityMultiSelect(discord.ui.Select):
             (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s
+                %s, %s, %s, %s, %s,
+                %s
             )
             """,
             (
                 interaction.guild.id,
                 interaction.user.id,
                 channel.id,
-                " + ".join(selected_activities),
+                " + ".join(self.selected_activities),
                 self.category,
-                total_points,
+                self.total_points,
                 False,
-                max_helpers,
+                self.max_helpers,
                 room_number,
                 False,
                 False,
                 False,
+                ign,
+                server_name,
                 time.time(),
                 time.time()
             )
@@ -580,19 +557,21 @@ class ActivityMultiSelect(discord.ui.Select):
 
         activity_list = "\n".join(
             f"- {activity} = {ACTIVITIES[self.category][activity]} point(s)"
-            for activity in selected_activities
+            for activity in self.selected_activities
         )
 
         embed = discord.Embed(
             title="🎟️ Combined Ultra Ticket Created",
             description=(
                 f"**Room:** `{room_number}`\n"
+                f"**Server:** `{server_name}`\n"
                 f"**Requester:** {interaction.user.mention}\n"
+                f"**IGN:** `{ign}`\n"
                 f"**Category:** {self.category}\n\n"
                 f"**Selected Ultras:**\n"
                 f"{activity_list}\n\n"
-                f"**Total Helper Reward:** {total_points} point(s) each\n"
-                f"**Helper Slots:** 0/{max_helpers}\n\n"
+                f"**Total Helper Reward:** {self.total_points} point(s) each\n"
+                f"**Helper Slots:** 0/{self.max_helpers}\n\n"
                 f"Waiting for helpers to join this ticket."
             ),
             color=discord.Color.blue()
@@ -604,12 +583,80 @@ class ActivityMultiSelect(discord.ui.Select):
             view=TicketControlView()
         )
 
-
         await interaction.response.send_message(
             f"✅ Combined ticket created: {channel.mention}",
             ephemeral=True
         )
-        
+
+
+class ActivityMultiSelect(discord.ui.Select):
+    def __init__(self, category):
+        self.category = category
+
+        options = [
+            discord.SelectOption(
+                label=activity,
+                description=f"{points} helper point(s)"
+            )
+            for activity, points in ACTIVITIES[category].items()
+        ]
+
+        super().__init__(
+            placeholder="Select one or more activities...",
+            options=options,
+            min_values=1,
+            max_values=len(options)
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        # No role restriction for creating ticket
+
+        existing_ticket = await get_active_ticket_by_user(
+            interaction.guild.id,
+            interaction.user.id
+        )
+
+        if existing_ticket:
+            await interaction.response.send_message(
+                "❌ You already have an active ticket. Close it first before creating another.",
+                ephemeral=True
+            )
+            return
+
+        selected_activities = self.values
+        total_points = sum(ACTIVITIES[self.category][activity] for activity in selected_activities)
+
+        config = await get_server_config(interaction.guild.id)
+
+        if not config:
+            await interaction.response.send_message(
+                "❌ Ticket system not setup. Admin must run /ticketsetup.",
+                ephemeral=True
+            )
+            return
+
+        max_helpers = get_max_helpers(self.category, selected_activities)
+
+        # Get requester's IGN from verified_users table
+        verified_user = await fetchone(
+            """
+            SELECT ign FROM verified_users
+            WHERE guild_id = %s AND user_id = %s
+            """,
+            (interaction.guild.id, interaction.user.id)
+        )
+        ign = verified_user["ign"] if verified_user else interaction.user.display_name
+
+        modal = TicketServerModal(
+            category=self.category,
+            selected_activities=selected_activities,
+            total_points=total_points,
+            max_helpers=max_helpers,
+            ign=ign
+        )
+        await interaction.response.send_modal(modal)
+
+
 
 
 class ActivityButtonView(discord.ui.View):
@@ -1972,7 +2019,35 @@ class Tickets(commands.Cog):
         self.bot.add_view(TicketPanelView())
         self.bot.add_view(OfficerControlView())
         self.bot.add_view(LeaderboardView())
+        self.migrate_stats_file()
         self.auto_close_inactive_tickets.start()
+
+    def migrate_stats_file(self):
+        stats = load_json(DAILY_STATS_FILE)
+        modified = False
+        if stats:
+            for date, day_data in stats.items():
+                activities = day_data.get("activities", {})
+                new_activities = {}
+                day_modified = False
+                extra_completed = 0
+                for activity_name, count in list(activities.items()):
+                    if " + " in activity_name:
+                        parts = [p.strip() for p in activity_name.split(" + ") if p.strip()]
+                        for part in parts:
+                            new_activities[part] = new_activities.get(part, 0) + count
+                        extra_completed += (len(parts) - 1) * count
+                        day_modified = True
+                        modified = True
+                    else:
+                        new_activities[activity_name] = new_activities.get(activity_name, 0) + count
+                if day_modified:
+                    day_data["activities"] = new_activities
+                    day_data["completed_tickets"] = day_data.get("completed_tickets", 0) + extra_completed
+            if modified:
+                save_json(DAILY_STATS_FILE, stats)
+                print("[STATS MIGRATION] Successfully cleaned and split historical combined activities in daily_stats.json")
+
 
 
     async def update_completed_tickets_embed(self, guild):
