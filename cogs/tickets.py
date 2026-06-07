@@ -350,40 +350,40 @@ class TicketPanelView(discord.ui.View):
     @discord.ui.button(label="Ultra Weeklies", style=discord.ButtonStyle.primary, emoji="🔷", custom_id="ticket_panel_ultra_weeklies")
     async def ultra_weeklies(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            "Select **Ultra Weeklies** activity:",
-            view=ActivityButtonView("Ultra Weeklies"),
+            "Select **Ultra Weeklies** activity and server:",
+            view=TicketCreationView("Ultra Weeklies"),
             ephemeral=True
         )
 
     @discord.ui.button(label="Ultra Dailies 4-Man", style=discord.ButtonStyle.success, emoji="🔶", custom_id="ticket_panel_ultra_dailies_4")
     async def ultra_dailies_4(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            "Select **Ultra Dailies 4-Man** activity:",
-            view=ActivityButtonView("Ultra Dailies 4-Man"),
+            "Select **Ultra Dailies 4-Man** activity and server:",
+            view=TicketCreationView("Ultra Dailies 4-Man"),
             ephemeral=True
         )
 
     @discord.ui.button(label="Daily Quests", style=discord.ButtonStyle.success, emoji="🔷", custom_id="ticket_panel_daily_quests")
     async def ultra_dailies_7(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            "Select **Daily Quests** activity:",
-            view=ActivityButtonView("Daily Quests"),
+            "Select **Daily Quests** activity and server:",
+            view=TicketCreationView("Daily Quests"),
             ephemeral=True
         )
 
     @discord.ui.button(label="TempleShrine", style=discord.ButtonStyle.secondary, emoji="⛩️", custom_id="ticket_panel_temple_shrine")
     async def temple_shrine(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            "Select **TempleShrine** activity:",
-            view=ActivityButtonView("TempleShrine"),
+            "Select **TempleShrine** activity and server:",
+            view=TicketCreationView("TempleShrine"),
             ephemeral=True
         )
 
     @discord.ui.button(label="GrimChallenge 7-Man", style=discord.ButtonStyle.danger, emoji="👹", custom_id="ticket_panel_grim_challenge")
     async def grim_challenge(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            "Select **GrimChallenge 7-Man** activity:",
-            view=ActivityButtonView("GrimChallenge 7-Man"),
+            "Select **GrimChallenge 7-Man** activity and server:",
+            view=TicketCreationView("GrimChallenge 7-Man"),
             ephemeral=True
         )
     
@@ -392,25 +392,87 @@ class TicketPanelView(discord.ui.View):
         await interaction.response.send_modal(HardFarmModal())
 
 
-class TicketServerModal(discord.ui.Modal):
-    def __init__(self, category, selected_activities, total_points, max_helpers, ign):
-        super().__init__(title="Select AQW Server")
-        self.category = category
-        self.selected_activities = selected_activities
-        self.total_points = total_points
-        self.max_helpers = max_helpers
-        self.ign = ign
-
-        self.server_input = discord.ui.TextInput(
-            label="AQW Server",
-            placeholder="Artix / Yorumi / Safiria",
-            default="Galanoth",
-            required=True,
-            max_length=32
+class ServerSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Galanoth", value="Galanoth", default=True),
+            discord.SelectOption(label="Artix", value="Artix"),
+            discord.SelectOption(label="Yorumi", value="Yorumi"),
+            discord.SelectOption(label="Safiria", value="Safiria"),
+            discord.SelectOption(label="Sir Ver", value="Sir Ver"),
+        ]
+        super().__init__(
+            placeholder="Select AQW Server...",
+            options=options,
+            min_values=1,
+            max_values=1,
+            row=1
         )
-        self.add_item(self.server_input)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_server = self.values[0]
+        await interaction.response.defer()
+
+
+class ActivityMultiSelect(discord.ui.Select):
+    def __init__(self, category):
+        self.category = category
+
+        options = [
+            discord.SelectOption(
+                label=activity,
+                description=f"{points} helper point(s)"
+            )
+            for activity, points in ACTIVITIES[category].items()
+        ]
+
+        super().__init__(
+            placeholder="Select one or more activities...",
+            options=options,
+            min_values=1,
+            max_values=len(options),
+            row=0
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_activities = self.values
+        await interaction.response.defer()
+
+
+class TicketCreationView(discord.ui.View):
+    def __init__(self, category):
+        super().__init__(timeout=120)
+        self.category = category
+        self.selected_activities = []
+        self.selected_server = "Galanoth"
+
+        self.activity_select = ActivityMultiSelect(category)
+        self.server_select = ServerSelect()
+
+        self.add_item(self.activity_select)
+        self.add_item(self.server_select)
+
+    @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.success, emoji="🎟️", row=2)
+    async def create_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.selected_activities:
+            await interaction.response.send_message(
+                "❌ Please select at least one activity first.",
+                ephemeral=True
+            )
+            return
+
+        existing_ticket = await get_active_ticket_by_user(
+            interaction.guild.id,
+            interaction.user.id
+        )
+
+        if existing_ticket:
+            await interaction.response.send_message(
+                "❌ You already have an active ticket. Close it first before creating another.",
+                ephemeral=True
+            )
+            return
+
         config = await get_server_config(interaction.guild.id)
         if not config:
             await interaction.response.send_message(
@@ -448,8 +510,19 @@ class TicketServerModal(discord.ui.Modal):
             if room_number not in used_numbers:
                 break
 
-        server_name = self.server_input.value
-        ign = self.ign
+        server_name = self.selected_server
+        total_points = sum(ACTIVITIES[self.category][activity] for activity in self.selected_activities)
+        max_helpers = get_max_helpers(self.category, self.selected_activities)
+
+        # Get requester's IGN from verified_users table
+        verified_user = await fetchone(
+            """
+            SELECT ign FROM verified_users
+            WHERE guild_id = %s AND user_id = %s
+            """,
+            (interaction.guild.id, interaction.user.id)
+        )
+        ign = verified_user["ign"] if verified_user else interaction.user.display_name
 
         category_slug = self.category.lower().replace(" ", "-")
         ign_slug = ign.lower().replace(" ", "-")
@@ -541,9 +614,9 @@ class TicketServerModal(discord.ui.Modal):
                 channel.id,
                 " + ".join(self.selected_activities),
                 self.category,
-                self.total_points,
+                total_points,
                 False,
-                self.max_helpers,
+                max_helpers,
                 room_number,
                 False,
                 False,
@@ -570,8 +643,8 @@ class TicketServerModal(discord.ui.Modal):
                 f"**Category:** {self.category}\n\n"
                 f"**Selected Ultras:**\n"
                 f"{activity_list}\n\n"
-                f"**Total Helper Reward:** {self.total_points} point(s) each\n"
-                f"**Helper Slots:** 0/{self.max_helpers}\n\n"
+                f"**Total Helper Reward:** {total_points} point(s) each\n"
+                f"**Helper Slots:** 0/{max_helpers}\n\n"
                 f"Waiting for helpers to join this ticket."
             ),
             color=discord.Color.blue()
@@ -583,86 +656,13 @@ class TicketServerModal(discord.ui.Modal):
             view=TicketControlView()
         )
 
-        await interaction.response.send_message(
-            f"✅ Combined ticket created: {channel.mention}",
-            ephemeral=True
+        for item in self.children:
+            item.disabled = True
+
+        await interaction.response.edit_message(
+            content=f"✅ Combined ticket created: {channel.mention}",
+            view=self
         )
-
-
-class ActivityMultiSelect(discord.ui.Select):
-    def __init__(self, category):
-        self.category = category
-
-        options = [
-            discord.SelectOption(
-                label=activity,
-                description=f"{points} helper point(s)"
-            )
-            for activity, points in ACTIVITIES[category].items()
-        ]
-
-        super().__init__(
-            placeholder="Select one or more activities...",
-            options=options,
-            min_values=1,
-            max_values=len(options)
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        # No role restriction for creating ticket
-
-        existing_ticket = await get_active_ticket_by_user(
-            interaction.guild.id,
-            interaction.user.id
-        )
-
-        if existing_ticket:
-            await interaction.response.send_message(
-                "❌ You already have an active ticket. Close it first before creating another.",
-                ephemeral=True
-            )
-            return
-
-        selected_activities = self.values
-        total_points = sum(ACTIVITIES[self.category][activity] for activity in selected_activities)
-
-        config = await get_server_config(interaction.guild.id)
-
-        if not config:
-            await interaction.response.send_message(
-                "❌ Ticket system not setup. Admin must run /ticketsetup.",
-                ephemeral=True
-            )
-            return
-
-        max_helpers = get_max_helpers(self.category, selected_activities)
-
-        # Get requester's IGN from verified_users table
-        verified_user = await fetchone(
-            """
-            SELECT ign FROM verified_users
-            WHERE guild_id = %s AND user_id = %s
-            """,
-            (interaction.guild.id, interaction.user.id)
-        )
-        ign = verified_user["ign"] if verified_user else interaction.user.display_name
-
-        modal = TicketServerModal(
-            category=self.category,
-            selected_activities=selected_activities,
-            total_points=total_points,
-            max_helpers=max_helpers,
-            ign=ign
-        )
-        await interaction.response.send_modal(modal)
-
-
-
-
-class ActivityButtonView(discord.ui.View):
-    def __init__(self, category):
-        super().__init__(timeout=120)
-        self.add_item(ActivityMultiSelect(category))
 
 class HardFarmModal(discord.ui.Modal, title="Hard Farm / Others Ticket"):
     ign = discord.ui.TextInput(
