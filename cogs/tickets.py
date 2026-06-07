@@ -2045,9 +2045,17 @@ class Tickets(commands.Cog):
                         name = member.mention if member else f"<@{user_id}>"
                         helper_text += f"**{index}.** {name} — **{points} points**\n"
 
-                # Most requested activities today
+                # Most requested activities today (resolve combined ones)
+                raw_activities = today_data.get("activities", {})
+                separated_activities = {}
+                for activity, count in raw_activities.items():
+                    for act in activity.split(" + "):
+                        act = act.strip()
+                        if act:
+                            separated_activities[act] = separated_activities.get(act, 0) + count
+
                 top_activities = sorted(
-                    today_data.get("activities", {}).items(),
+                    separated_activities.items(),
                     key=lambda item: item[1],
                     reverse=True
                 )[:5]
@@ -2502,8 +2510,16 @@ class Tickets(commands.Cog):
         if not helper_text:
             helper_text = "No helpers recorded today."
 
+        raw_activities = data.get("activities", {})
+        separated_activities = {}
+        for activity, count in raw_activities.items():
+            for act in activity.split(" + "):
+                act = act.strip()
+                if act:
+                    separated_activities[act] = separated_activities.get(act, 0) + count
+
         top_activities = sorted(
-            data["activities"].items(),
+            separated_activities.items(),
             key=lambda item: item[1],
             reverse=True
         )[:5]
