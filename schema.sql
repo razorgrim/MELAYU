@@ -229,4 +229,37 @@ CREATE TABLE IF NOT EXISTS `rpg_notifications` (
   PRIMARY KEY (`guild_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `user_profiles` (
+  `guild_id` bigint(20) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `xp` int(11) NOT NULL DEFAULT 0,
+  `level` int(11) NOT NULL DEFAULT 1,
+  `coins` int(11) NOT NULL DEFAULT 0,
+  `active_title` varchar(100) DEFAULT NULL,
+  `embed_color` varchar(7) DEFAULT '#5865F2',
+  `daily_last_claim` double DEFAULT 0,
+  `daily_streak` int(11) NOT NULL DEFAULT 0,
+  `inventory` text DEFAULT NULL,
+  `achievements` text DEFAULT NULL,
+  `completed_tickets` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`guild_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `shop_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `guild_id` bigint(20) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `type` varchar(32) NOT NULL,
+  `price` int(11) NOT NULL,
+  `target_id` bigint(20) DEFAULT NULL,
+  `target_text` varchar(200) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `level_config` (
+  `guild_id` bigint(20) NOT NULL,
+  `announcement_channel_id` bigint(20) DEFAULT NULL,
+  PRIMARY KEY (`guild_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;

@@ -578,26 +578,23 @@ class Boosts(commands.Cog):
 
             await interaction.followup.send(embed=embed)
 
-    @app_commands.command(
-        name="boost_setchannel",
-        description="Set AQW reminder channel"
-    )
-    @app_commands.describe(
-        channel="Channel for AQW reminders"
-    )
-    async def boost_setchannel(
+    @commands.command(name="boosts")
+    async def boosts_setup_cmd(
         self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel
+        ctx,
+        channel: discord.TextChannel,
+        status: str
     ):
-        if not interaction.user.guild_permissions.manage_guild:
-            await interaction.response.send_message(
-                "You do not have permission.",
-                ephemeral=True
-            )
+        if not ctx.author.guild_permissions.administrator:
+            await ctx.send("❌ Only administrators can configure setup options.")
             return
 
-        guild_id = interaction.guild.id
+        status = status.lower()
+        if status not in ["on", "off"]:
+            await ctx.send("❌ Use `on` or `off` for the status.")
+            return
+
+        guild_id = ctx.guild.id
 
         await execute(
             """
@@ -616,66 +613,12 @@ class Boosts(commands.Cog):
             (
                 guild_id,
                 channel.id,
-                True
-            )
-        )
-
-        await interaction.response.send_message(
-            f"AQW reminders will be sent to {channel.mention}",
-            ephemeral=True
-        )
-
-    @app_commands.command(
-        name="boost_notify",
-        description="Enable or disable AQW reminders"
-    )
-    @app_commands.describe(
-        status="on or off"
-    )
-    async def boost_notify(
-        self,
-        interaction: discord.Interaction,
-        status: str
-    ):
-        if not interaction.user.guild_permissions.manage_guild:
-            await interaction.response.send_message(
-                "You do not have permission.",
-                ephemeral=True
-            )
-            return
-
-        status = status.lower()
-
-        if status not in ["on", "off"]:
-            await interaction.response.send_message(
-                "Use `on` or `off`.",
-                ephemeral=True
-            )
-            return
-
-        guild_id = interaction.guild.id
-
-        await execute(
-            """
-            INSERT INTO server_settings
-            (
-                guild_id,
-                boost_notify_enabled
-            )
-            VALUES (%s, %s)
-
-            ON DUPLICATE KEY UPDATE
-                boost_notify_enabled = VALUES(boost_notify_enabled)
-            """,
-            (
-                guild_id,
                 status == "on"
             )
         )
 
-        await interaction.response.send_message(
-            f"AQW reminders are now **{status}**.",
-            ephemeral=True
+        await ctx.send(
+            f"✅ Boost setup completed. Reminders will be sent to {channel.mention} (Reminders: **{status}**)."
         )
 
     @tasks.loop(minutes=1)
@@ -945,6 +888,17 @@ class Boosts(commands.Cog):
 
             except Exception as e:
                 print(f"[WEEKLY REMINDER ERROR] {e}")
+
+    async def cog_load(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            self.bot.remove_command("boosts")
+            setup_cmd.add_command(self.boosts_setup_cmd)
+
+    def cog_unload(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            setup_cmd.remove_command("boosts")
 
 
 async def setup(bot):

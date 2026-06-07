@@ -484,7 +484,7 @@ class TicketCreationView(discord.ui.View):
         config = await get_server_config(interaction.guild.id)
         if not config:
             await interaction.response.send_message(
-                "❌ Ticket system not setup. Admin must run /ticketsetup.",
+                "❌ Ticket system not setup. Admin must run `!setup ticket`.",
                 ephemeral=True
             )
             return
@@ -741,7 +741,7 @@ class HardFarmModal(discord.ui.Modal, title="Hard Farm / Others Ticket"):
 
         if not config:
             await interaction.response.send_message(
-                "❌ Ticket system not setup. Admin must run /ticketsetup.",
+                "❌ Ticket system not setup. Admin must run `!setup ticket`.",
                 ephemeral=True
             )
             return
@@ -1758,6 +1758,19 @@ class TicketControlView(discord.ui.View):
                 )
             )
 
+            # Award spendable MCoin and XP
+            profile_cog = self.bot.get_cog("Profile")
+            if profile_cog:
+                xp_reward = final_points * 50
+                await profile_cog.add_xp_and_coins(
+                    interaction.guild,
+                    helper_id,
+                    xp_reward,
+                    final_points,
+                    tickets_to_add=1,
+                    channel=interaction.channel
+                )
+
             helper = interaction.guild.get_member(helper_id)
 
             helper_name = (
@@ -1798,6 +1811,19 @@ class TicketControlView(discord.ui.View):
                 requester_points
             )
         )
+
+        # Award spendable MCoin and XP to requester
+        profile_cog = self.bot.get_cog("Profile")
+        if profile_cog:
+            requester_xp_reward = requester_points * 50
+            await profile_cog.add_xp_and_coins(
+                interaction.guild,
+                requester_id,
+                requester_xp_reward,
+                requester_points,
+                tickets_to_add=1,
+                channel=interaction.channel
+            )
 
         requester = interaction.guild.get_member(
             requester_id
@@ -2345,21 +2371,10 @@ class Tickets(commands.Cog):
                 except:
                     pass
 
-    @app_commands.command(
-        name="ticketsetup",
-        description="Setup ticket system for this server"
-    )
-    @app_commands.describe(
-        officer_role="Role allowed to manage tickets",
-        helper_role="Role allowed to join as helper",
-        bonus_role="Role that gets extra points",
-        ticket_category="Category where ticket channels will be created",
-        log_channel="Channel for completed ticket logs",
-        active_tickets_channel="Optional: Specific text channel where active ticket threads will be created"
-    )
-    async def ticketsetup(
+    @commands.command(name="ticket")
+    async def ticket_setup(
         self,
-        interaction: discord.Interaction,
+        ctx,
         officer_role: discord.Role,
         helper_role: discord.Role,
         bonus_role: discord.Role,
@@ -2367,12 +2382,11 @@ class Tickets(commands.Cog):
         log_channel: discord.TextChannel,
         active_tickets_channel: discord.TextChannel = None
     ):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(
-                "❌ Only server administrators can setup this bot.",
-                ephemeral=True
-            )
+        if not ctx.author.guild_permissions.administrator:
+            await ctx.send("❌ Only server administrators can configure setup options.")
             return
+
+        guild_id = ctx.guild.id
 
         await execute(
             """
@@ -2397,7 +2411,7 @@ class Tickets(commands.Cog):
                 active_tickets_channel_id = VALUES(active_tickets_channel_id)
             """,
             (
-                interaction.guild.id,
+                guild_id,
                 officer_role.id,
                 helper_role.id,
                 bonus_role.id,
@@ -2408,24 +2422,16 @@ class Tickets(commands.Cog):
         )
 
         try:
-            await self.update_completed_tickets_embed(interaction.guild)
+            await self.update_completed_tickets_embed(ctx.guild)
         except Exception as e:
             print(f"[TICKETS] Failed to update completed tickets embed on setup: {e}")
 
-        await interaction.response.send_message(
-            "✅ Ticket system setup completed for this server.",
-            ephemeral=True
-        )
-    @app_commands.command(
-        name="ticketpanel",
-        description="Send the Ultra Ticket panel"
-    )
-    async def ticketpanel(self, interaction: discord.Interaction):
-        if not await is_officer(interaction.user):
-            await interaction.response.send_message(
-                "❌ Only Officer can use this command.",
-                ephemeral=True
-            )
+        await ctx.send("✅ Ticket system setup completed for this server.")
+
+    @commands.command(name="ticketpanel")
+    async def ticketpanel(self, ctx):
+        if not await is_officer(ctx.author):
+            await ctx.send("❌ Only Officer can use this command.")
             return
 
         embed = discord.Embed(
@@ -2473,7 +2479,7 @@ class Tickets(commands.Cog):
 
         embed.set_footer(text="AQW MELAYU • Ultra Ticket Testing Phase")
 
-        await interaction.response.send_message(
+        await ctx.send(
             embed=embed,
             view=TicketPanelView()
         )
@@ -2531,16 +2537,10 @@ class Tickets(commands.Cog):
         embed = view.generate_embed(data, interaction.guild, 0, per_page)
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.command(
-        name="resetleaderboard",
-        description="Reset all ticket points leaderboard"
-    )
-    async def resetleaderboard(self, interaction: discord.Interaction):
-        if not await is_officer(interaction.user):
-            await interaction.response.send_message(
-                "❌ Only Officer can reset leaderboard.",
-                ephemeral=True
-            )
+    @commands.command(name="resetleaderboard")
+    async def resetleaderboard(self, ctx):
+        if not await is_officer(ctx.author):
+            await ctx.send("❌ Only Officer can reset leaderboard.")
             return
 
         await execute(
@@ -2548,15 +2548,13 @@ class Tickets(commands.Cog):
             DELETE FROM helper_points
             WHERE guild_id = %s
             """,
-            (interaction.guild.id,)
+            (ctx.guild.id,)
         )
 
-        await interaction.response.send_message(
-            "🧹 Ticket leaderboard has been reset successfully."
-        )
+        await ctx.send("🧹 Ticket leaderboard has been reset successfully.")
 
         try:
-            await update_persistent_leaderboard(interaction.guild)
+            await update_persistent_leaderboard(ctx.guild)
         except Exception as e:
             print(f"[LEADERBOARD] Failed to update leaderboard on reset: {e}")
 
@@ -2683,6 +2681,17 @@ class Tickets(commands.Cog):
             f"This panel will automatically self-update in real-time whenever points are gained or reset.",
             ephemeral=True
         )
+
+    async def cog_load(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            self.bot.remove_command("ticket")
+            setup_cmd.add_command(self.ticket_setup)
+
+    def cog_unload(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            setup_cmd.remove_command("ticket")
 
 
 async def setup(bot):

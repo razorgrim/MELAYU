@@ -19,7 +19,7 @@ class PvPRegisterView(discord.ui.View):
         )
         if not config:
             await interaction.response.send_message(
-                "❌ PvP Tournament is not configured yet on this server. Officers must run `/pvp_setup` first.",
+                "❌ PvP Tournament is not configured yet on this server. Officers must run `!setup pvp` first.",
                 ephemeral=True
             )
             return
@@ -495,34 +495,22 @@ class PvPTournament(commands.Cog):
             round_start_id = round_end_id + 1
             current_limit = current_limit // 2
 
-    @app_commands.command(
-        name="pvp_setup",
-        description="Set up a new persistent PvP Tournament dashboard."
-    )
-    @app_commands.describe(
-        player_limit="Maximum size of the tournament bracket (8 or 16 players)"
-    )
-    async def pvp_setup(self, interaction: discord.Interaction, player_limit: int = 8):
+    @commands.command(name="pvp")
+    async def pvp_setup_cmd(self, ctx, player_limit: int = 8):
         # 1. Authorize Officer status
         from cogs.tickets import is_officer
-        if not await is_officer(interaction.user):
-            await interaction.response.send_message(
-                "❌ Only PvP Officers or Admins can setup the PvP tournament.",
-                ephemeral=True
-            )
+        if not await is_officer(ctx.author):
+            await ctx.send("❌ Only PvP Officers or Admins can setup the PvP tournament.")
             return
 
         if player_limit not in [2, 4, 8, 16, 32, 64]:
-            await interaction.response.send_message(
-                "❌ PvP Brackets only support powers of 2: `2`, `4`, `8`, `16`, `32`, or `64` players.",
-                ephemeral=True
-            )
+            await ctx.send("❌ PvP Brackets only support powers of 2: `2`, `4`, `8`, `16`, `32`, or `64` players.")
             return
 
-        guild_id = interaction.guild_id
+        guild_id = ctx.guild.id
 
         # Archive any active threads before deleting database configuration
-        await self.archive_all_pvp_threads(interaction.guild, guild_id)
+        await self.archive_all_pvp_threads(ctx.guild, guild_id)
 
         # 2. Delete any existing configuration to prevent orphan dashboards
         await execute("DELETE FROM tournament_matches WHERE guild_id = %s", (guild_id,))
@@ -532,14 +520,14 @@ class PvPTournament(commands.Cog):
         # 3. Create active config record
         await execute(
             "INSERT INTO tournament_config (guild_id, channel_id, player_limit, status) VALUES (%s, %s, %s, 'registration')",
-            (guild_id, interaction.channel.id, player_limit)
+            (guild_id, ctx.channel.id, player_limit)
         )
 
         # 4. Generate first static dashboard message
         embed = await self.generate_bracket_embed(guild_id)
+        from cogs.tournament import PvPRegisterView
         view = PvPRegisterView()
-        await interaction.response.send_message("⚙️ Initializing tournament dashboard...", ephemeral=True)
-        message = await interaction.channel.send(embed=embed, view=view)
+        message = await ctx.send(embed=embed, view=view)
 
         # Update message_id reference
         await execute(
@@ -547,36 +535,24 @@ class PvPTournament(commands.Cog):
             (message.id, guild_id)
         )
 
-    @app_commands.command(
-        name="pvp_start",
-        description="Lock registrations and seed the tournament bracket."
-    )
-    async def pvp_start(self, interaction: discord.Interaction):
+    @commands.command(name="pvp_start")
+    async def pvp_start(self, ctx):
         from cogs.tickets import is_officer
-        if not await is_officer(interaction.user):
-            await interaction.response.send_message(
-                "❌ Only PvP Officers can start the tournament.",
-                ephemeral=True
-            )
+        if not await is_officer(ctx.author):
+            await ctx.send("❌ Only PvP Officers can start the tournament.")
             return
 
-        guild_id = interaction.guild_id
+        guild_id = ctx.guild.id
         config = await fetchone(
             "SELECT * FROM tournament_config WHERE guild_id = %s",
             (guild_id,)
         )
         if not config:
-            await interaction.response.send_message(
-                "❌ Tournament dashboard not configured yet. Run `/pvp_setup`.",
-                ephemeral=True
-            )
+            await ctx.send("❌ Tournament dashboard not configured yet. Run `!setup pvp`.")
             return
 
         if config["status"] != "registration":
-            await interaction.response.send_message(
-                "❌ Tournament has already started or completed.",
-                ephemeral=True
-            )
+            await ctx.send("❌ Tournament has already started or completed.")
             return
 
         # Fetch registered players
@@ -585,13 +561,10 @@ class PvPTournament(commands.Cog):
             (guild_id,)
         )
         if len(players) < 2:
-            await interaction.response.send_message(
-                "❌ Cannot start tournament with less than 2 players! Please wait for more members to register.",
-                ephemeral=True
-            )
+            await ctx.send("❌ Cannot start tournament with less than 2 players! Please wait for more members to register.")
             return
 
-        await interaction.response.defer(ephemeral=True)
+        await ctx.send("⚙️ Starting PvP Tournament...")
 
         # Determine smallest power of 2 that is >= len(players)
         limit = 2
@@ -654,8 +627,7 @@ class PvPTournament(commands.Cog):
         await self.check_and_resolve_byes(guild_id, limit)
 
         # Create private threads for Round 1 matches that are ready (have two real players)
-        await self.check_and_create_pending_match_threads(interaction.guild, interaction.channel, guild_id)
-
+        await self.check_and_create_pending_match_threads(ctx.guild, ctx.channel, guild_id)
 
         # Lock registration state
         await execute(
@@ -665,7 +637,7 @@ class PvPTournament(commands.Cog):
 
         # Re-render dashboard
         await self.update_dashboard(guild_id)
-        await interaction.followup.send("🚀 Tournament bracket seeded and started successfully!")
+        await ctx.send("🚀 Tournament bracket seeded and started successfully!")
 
     @app_commands.command(
         name="pvp_setwinner",
@@ -820,31 +792,34 @@ class PvPTournament(commands.Cog):
             f"✅ Recorded Match `{match_id}` Winner: **`{winner_ign}`** `{p1_score}-{p2_score}`! Live brackets updated."
         )
 
-    @app_commands.command(
-        name="pvp_reset",
-        description="Reset and purge the active tournament configuration."
-    )
-    async def pvp_reset(self, interaction: discord.Interaction):
+    @commands.command(name="pvp_reset")
+    async def pvp_reset(self, ctx):
         from cogs.tickets import is_officer
-        if not await is_officer(interaction.user):
-            await interaction.response.send_message(
-                "❌ Only PvP Officers can reset the tournament.",
-                ephemeral=True
-            )
+        if not await is_officer(ctx.author):
+            await ctx.send("❌ Only PvP Officers can reset the tournament.")
             return
 
-        guild_id = interaction.guild_id
+        guild_id = ctx.guild.id
         
         # Archive all active contestant threads before clearing database config
-        await self.archive_all_pvp_threads(interaction.guild, guild_id)
+        await self.archive_all_pvp_threads(ctx.guild, guild_id)
 
         await execute("DELETE FROM tournament_matches WHERE guild_id = %s", (guild_id,))
         await execute("DELETE FROM tournament_players WHERE guild_id = %s", (guild_id,))
         await execute("DELETE FROM tournament_config WHERE guild_id = %s", (guild_id,))
 
-        await interaction.response.send_message(
-            "🧹 PvP Tournament has been fully reset and cleared. Ready for next setup!"
-        )
+        await ctx.send("🧹 PvP Tournament has been fully reset and cleared. Ready for next setup!")
+
+    async def cog_load(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            self.bot.remove_command("pvp")
+            setup_cmd.add_command(self.pvp_setup_cmd)
+
+    def cog_unload(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            setup_cmd.remove_command("pvp")
 
 
 async def setup(bot):

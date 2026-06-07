@@ -147,22 +147,13 @@ class SelfRoles(commands.Cog):
         self.bot = bot
         self.bot.add_view(SelfRolesView()) # Re-register persistent view on startup
 
-    @app_commands.command(
-        name="rolesetup",
-        description="Setup and post the self-assignable roles & factions panel."
-    )
-    @app_commands.describe(
-        channel="Channel to post the self-roles embed in"
-    )
-    async def rolesetup(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(
-                "❌ Only administrators can configure self-assignable roles.",
-                ephemeral=True
-            )
+    @commands.command(name="roles")
+    async def roles_setup_cmd(self, ctx, channel: discord.TextChannel = None):
+        if not ctx.author.guild_permissions.administrator:
+            await ctx.send("❌ Only administrators can configure self-assignable roles.")
             return
 
-        target_channel = channel or interaction.channel
+        target_channel = channel or ctx.channel
 
         # Generate a premium embed
         embed = discord.Embed(
@@ -170,16 +161,24 @@ class SelfRoles(commands.Cog):
             description=panel_config.ROLES_DESCRIPTION,
             color=discord.Color(panel_config.ROLES_COLOR)
         )
-        if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.set_footer(text=panel_config.ROLES_FOOTER, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        embed.set_footer(text=panel_config.ROLES_FOOTER, icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
 
         view = SelfRolesView()
         await target_channel.send(embed=embed, view=view)
-        await interaction.response.send_message(
-            f"✅ Self-roles panel posted in {target_channel.mention}!",
-            ephemeral=True
-        )
+        await ctx.send(f"✅ Self-roles panel posted in {target_channel.mention}!")
+
+    async def cog_load(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            self.bot.remove_command("roles")
+            setup_cmd.add_command(self.roles_setup_cmd)
+
+    def cog_unload(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            setup_cmd.remove_command("roles")
 
 
 async def setup(bot):

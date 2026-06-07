@@ -441,25 +441,16 @@ class ClassGuide(commands.Cog):
     async def class_delete_autocomplete(self, interaction: discord.Interaction, current: str):
         return await self.class_guide_autocomplete(interaction, current)
 
-    @app_commands.command(
-        name="class_panel",
-        description="Post the interactive AQW Class Guide dropdown panel (Officer Only)"
-    )
-    @app_commands.describe(
-        channel="Optional channel to send the panel in"
-    )
-    async def class_panel(self, interaction: discord.Interaction, channel: discord.TextChannel = None):
+    @commands.command(name="class")
+    async def class_panel_cmd(self, ctx, channel: discord.TextChannel = None):
         # 1. Authorize Officer status
         from cogs.tickets import is_officer
-        if not await is_officer(interaction.user):
-            await interaction.response.send_message(
-                "❌ Only Faction Officers or Administrators can configure the library panel.",
-                ephemeral=True
-            )
+        if not await is_officer(ctx.author):
+            await ctx.send("❌ Only Faction Officers or Administrators can configure the library panel.")
             return
 
-        target_channel = channel or interaction.channel
-        guild_id = interaction.guild.id
+        target_channel = channel or ctx.channel
+        guild_id = ctx.guild.id
 
         # 2. Query classes
         classes = await fetchall(
@@ -468,10 +459,9 @@ class ClassGuide(commands.Cog):
         )
 
         if not classes:
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Cannot create panel because there are no class guides stored yet!\n"
-                "Please add some classes first using `/class_add`.",
-                ephemeral=True
+                "Please add some classes first using `/class_add`."
             )
             return
 
@@ -481,11 +471,11 @@ class ClassGuide(commands.Cog):
             description=panel_config.CLASS_DESCRIPTION,
             color=discord.Color(panel_config.CLASS_COLOR)
         )
-        if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.set_footer(
-            text=panel_config.CLASS_FOOTER_TEMPLATE.format(guild_name=interaction.guild.name),
-            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+            text=panel_config.CLASS_FOOTER_TEMPLATE.format(guild_name=ctx.guild.name),
+            icon_url=ctx.guild.icon.url if ctx.guild.icon else None
         )
 
         view = ClassDropdownView(classes)
@@ -503,11 +493,22 @@ class ClassGuide(commands.Cog):
             (guild_id, target_channel.id, message.id)
         )
         
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ Class Setup Library panel has been posted in {target_channel.mention}!\n"
-            f"This panel will automatically self-update in real-time whenever you add or edit class guides.",
-            ephemeral=True
+            f"This panel will automatically self-update in real-time whenever you add or edit class guides."
         )
+
+
+    async def cog_load(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            self.bot.remove_command("class")
+            setup_cmd.add_command(self.class_panel_cmd)
+
+    def cog_unload(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            setup_cmd.remove_command("class")
 
 
 async def setup(bot):

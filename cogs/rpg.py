@@ -15,9 +15,6 @@ class Rpg(commands.Cog):
         if not message.guild:
             return
 
-        # Debug print to verify Message Content Intent and content receipt
-        print(f"[RPG DEBUG] Message received from {message.author} in #{message.channel}: '{message.content}'")
-
         # 1. Handle "rpg notify" toggle command
         content_clean = message.content.strip().lower()
         if content_clean == "rpg notify":

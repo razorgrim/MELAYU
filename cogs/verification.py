@@ -108,7 +108,7 @@ async def perform_verification(interaction: discord.Interaction, nickname: str, 
     if not server_config:
         await interaction.followup.send(
             "❌ Verification is not set up for this server yet.\n"
-            "Ask an admin to use `/verification_setup` first.",
+            "Ask an admin to use `!setup verification` first.",
             ephemeral=True
         )
         return
@@ -122,14 +122,14 @@ async def perform_verification(interaction: discord.Interaction, nickname: str, 
 
     if adventure_role is None:
         await interaction.followup.send(
-            "❌ Adventure role not found. Ask admin to run `/verification_setup` again.",
+            "❌ Adventure role not found. Ask admin to run `!setup verification` again.",
             ephemeral=True
         )
         return
 
     if member_role is None:
         await interaction.followup.send(
-            "❌ Guild member role not found. Ask admin to run `/verification_setup` again.",
+            "❌ Guild member role not found. Ask admin to run `!setup verification` again.",
             ephemeral=True
         )
         return
@@ -424,32 +424,20 @@ class Verification(commands.Cog):
         self.bot = bot
         self.bot.add_view(VerifyView())
 
-    @app_commands.command(
-        name="verification_setup",
-        description="Set up AQW verification roles for this server"
-    )
-    @app_commands.describe(
-        aqw_guild_name="AQW guild name to check, example: M E L A Y U",
-        adventure_role="Role for all verified AQW players",
-        member_role="Role for users inside the target AQW guild",
-        image_url="Optional image URL for the verification panel"
-    )
-    async def verification_setup(
+    @commands.command(name="verification_setup_prefix")
+    async def verification_setup_cmd(
         self,
-        interaction: discord.Interaction,
+        ctx,
         aqw_guild_name: str,
         adventure_role: discord.Role,
         member_role: discord.Role,
         image_url: str = None
     ):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(
-                "❌ Only administrators can use this command.",
-                ephemeral=True
-            )
+        if not ctx.author.guild_permissions.administrator:
+            await ctx.send("❌ Only administrators can use this command.")
             return
 
-        guild_id = interaction.guild.id
+        guild_id = ctx.guild.id
 
         await execute(
             """
@@ -477,27 +465,20 @@ class Verification(commands.Cog):
             )
         )
 
-        await interaction.response.send_message(
+        await ctx.send(
             f"✅ Verification setup completed.\n\n"
             f"AQW Guild: `{aqw_guild_name}`\n"
             f"Adventure Role: {adventure_role.mention}\n"
-            f"Guild Member Role: {member_role.mention}",
-            ephemeral=True
+            f"Guild Member Role: {member_role.mention}"
         )
 
-    @app_commands.command(
-    name="verification",
-    description="Send the AQW verification panel"
-    )
-    async def verification(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(
-                "❌ Only administrators can use this command.",
-                ephemeral=True
-            )
+    @commands.command(name="verification")
+    async def verification_panel_cmd(self, ctx):
+        if not ctx.author.guild_permissions.administrator:
+            await ctx.send("❌ Only administrators can use this command.")
             return
 
-        guild_id = interaction.guild.id
+        guild_id = ctx.guild.id
 
         server_config = await fetchone(
             """
@@ -508,17 +489,16 @@ class Verification(commands.Cog):
         )
 
         if not server_config:
-            await interaction.response.send_message(
+            await ctx.send(
                 "❌ Verification is not set up yet.\n\n"
                 "Use:\n"
-                "`/verification_setup aqw_guild_name:<guild> adventure_role:<role> member_role:<role>`",
-                ephemeral=True
+                "`!setup verification aqw_guild_name:<guild> adventure_role:<role> member_role:<role>`"
             )
             return
 
         aqw_guild_name = server_config["aqw_guild_name"]
-        adventure_role = interaction.guild.get_role(server_config["adventure_role_id"])
-        member_role = interaction.guild.get_role(server_config["member_role_id"])
+        adventure_role = ctx.guild.get_role(server_config["adventure_role_id"])
+        member_role = ctx.guild.get_role(server_config["member_role_id"])
         image_url = server_config.get("image_url")
 
         description_text = panel_config.VERIFICATION_DESCRIPTION_TEMPLATE.format(
@@ -540,10 +520,23 @@ class Verification(commands.Cog):
 
         embed.set_footer(text=panel_config.VERIFICATION_FOOTER)
 
-        await interaction.response.send_message(
+        await ctx.send(
             embed=embed,
             view=VerifyView()
         )
+
+    async def cog_load(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            # Dynamically rename the setup subcommand so it registers as `!setup verification`
+            self.verification_setup_cmd.name = "verification"
+            self.bot.remove_command("verification_setup_prefix")
+            setup_cmd.add_command(self.verification_setup_cmd)
+
+    def cog_unload(self):
+        setup_cmd = self.bot.get_command("setup")
+        if setup_cmd and isinstance(setup_cmd, commands.Group):
+            setup_cmd.remove_command("verification")
 
 
 async def setup(bot):

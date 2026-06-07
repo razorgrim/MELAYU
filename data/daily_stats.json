@@ -82,5 +82,17 @@
             "VoidNightbane": 1,
             "KathoolDepths": 1
         }
+    },
+    "2026-06-07": {
+        "completed_tickets": 0,
+        "cancelled_tickets": 1,
+        "total_points_given": 0,
+        "helpers": {},
+        "requesters": {
+            "582945457865621513": 0
+        },
+        "activities": {
+            "UltraDage": 1
+        }
     }
 }

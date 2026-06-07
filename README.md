@@ -20,6 +20,12 @@ Welcome to the official **AQW MALAYSIA Community Discord Bot**! This bot is desi
     *   Tracks helper point contributions for completing Ultra bosses (e.g., Ultra Speaker, Ultra Dage).
     *   Includes a dynamic, paginated leaderboard embed.
     *   Auto-closes inactive tickets after 2 hours with warnings.
+*   **📈 Leveling & Server Shop**: Complete engagement economy system.
+    *   Chatting earns random XP and levels up players with a premium level-up announcement.
+    *   Earn **Melayu Coins (MCoin)** and bonus XP by completing helper request tickets.
+    *   Spend coins in the server shop to buy roles, custom equippable titles, and profile card colors.
+    *   Assign specific custom achievements to players via Officer setup commands.
+    *   Displays a stunning, customizable `/profile` card showing level, progress bar, MCoin, streak, achievements count, and total tickets completed.
 *   **📚 Class Setup Library**: A database for sharing the best class guides.
     *   Stores notes, Non-Forge, Solo, and Ultra boss enchantments, recommended potions, and skill combos.
     *   Interactive paginated dropdown selection menu that automatically updates on edits.
@@ -91,30 +97,51 @@ To customize the embeds, text layouts, images, and colors shown in panels:
 
 ## 🤖 Commands List
 
-### Verification Commands
-*   `/verification_setup [aqw_guild_name] [adventure_role] [member_role] [image_url]` — Configures verification roles and target AQW guild check.
-*   `/verification` — Sends the interactive character verification panel to a channel.
+### ⚙️ Server Configuration (Prefix Commands • Admin & Officer Only)
+All configuration is performed using the `!setup` command prefix:
+*   `!setup verification <aqw_guild_name> <adventure_role> <member_role> [image_url]` — Setup verification config.
+*   `!setup ticket <officer_role> <helper_role> <bonus_role> <category> <log_channel> [active_channel]` — Setup tickets config.
+*   `!setup boosts <channel> <on/off>` — Toggle daily & weekly automatic AQW boost announcements.
+*   `!setup pvp [player_limit]` — Initialize PvP tournament registration and brackets.
+*   `!setup roles [channel]` — Setup the Factions & self-assignable roles toggle panel.
+*   `!setup class [channel]` — Post the interactive Class Setup Library dropdown.
+*   `!setup levelchannel <#channel>` — Set level-up announcement channel.
+*   `!setup addshop <role | title | color> <price> <"Name"> <target>` — Add item to server shop.
+*   `!setup delshop <item_id>` — Delete item from server shop.
+*   `!setup achievement give <@member> <"Achievement">` — Award an achievement to a member.
+*   `!setup achievement remove <@member> <"Achievement">` — Revoke/remove an achievement.
 
-### Roles & Factions
-*   `/rolesetup [channel]` — Sends the Factions and Self roles selection panel.
+### 🛡️ Admin Management Panels (Prefix Commands • Admin Only)
+*   `!verification` — Post the interactive AQW character verification board.
+*   `!ticketpanel` — Post the Ultra Ticket boss helper request panel.
+*   `!resetleaderboard` — Reset helper points on the ticket leaderboard.
+*   `!pvp_start` — Seed brackets and start tournament match threads.
+*   `!pvp_reset` — Clear brackets, reset player registry, and archive threads.
 
-### Class Guides
-*   `/class_add [class_name] [note] [enchant_non_forge] [enchant_solo] [enchant_ultra] [potion] [combo]` — Adds or updates a class guide (Officer Only).
-*   `/class_guide [class_name]` — Search and view a class guide setup. Includes search autocomplete.
-*   `/class_delete [class_name]` — Deletes a class guide from the library (Officer Only).
-*   `/class_panel [channel]` — Sends the interactive, persistent dropdown panel for guides (Officer Only).
+### 👤 Player Leveling & Shop (Slash Commands)
+*   `/profile [user]` — View leveling stats, MCoin balance, achievements count, and completed tickets.
+*   `/daily` — Claim daily MCoin and XP rewards with streak bonuses.
+*   `/shop` — Browse items, titles, and profile colors.
+*   `/buy <item_id>` — Purchase an item using Melayu Coins.
+*   `/inventory` — View your purchased shop items and earned achievements.
+*   `/equip <name>` — Highlight an unlocked achievement title or custom profile color.
+*   `/levelboard` — View the top active members by XP ranking.
 
-### PvP Tournaments
-*   `/pvp_setup [player_limit]` — Instantiates a new PvP Tournament brackets registration panel (Officer Only).
-*   `/pvp_start` — Locks registration, seeds bracket and creates private match threads (Officer Only).
-*   `/pvp_setwinner [match_id] [winner_ign] [winner_score] [loser_score]` — Declares match outcomes and advances the winner (Officer Only).
+### 📚 Class Guides (Slash Commands)
+*   `/class_guide [class_name]` — View class setups, enchantments, potions, and combos (includes search autocomplete).
+*   `/class_add [class_name] [note] [enchant_non_forge] [enchant_solo] [enchant_ultra] [potion] [combo]` — Adds/updates a guide.
+*   `/class_delete [class_name]` — Deletes a guide.
 
-### Ultra Ticket System
-*   `/ticketsetup [officer_role] [helper_role] [bonus_role] [ticket_category] [log_channel] [active_tickets_channel]` — Setup ticket configurations.
-*   `/ticketpanel` — Posts the Ultra Ticket creation board (Officer Only).
+### 🏆 PVP Tournaments (Slash Commands)
+*   `/pvp_setwinner [match_id] [winner_ign] [winner_score] [loser_score]` — Record match scores (Officer Only).
+
+### 🎟️ Ultra Ticket System (Slash Commands)
 *   `/points` — Check your helper points balance.
+*   `/leaderboard` — View the paginated top helper rankings.
+*   `/dailystats` — View ticket completion statistics.
 
-### Charpage Lookups
+### 🔍 Charpage Lookups (Slash Commands)
 *   `/charpage [ign]` — Displays player level, class, equipment, and badges.
 *   `/checkinv [ign]` — Lists active inventory items and equipment.
-*   `/boost` — Views the active daily/weekly boosts with Malaysia-Time countdown timer.
+*   `/boost_today` — Views the active resource boosts today.
+*   `/boost_week` — Views the calendar boosts scheduled for this week.
