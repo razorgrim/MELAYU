@@ -1759,7 +1759,7 @@ class TicketControlView(discord.ui.View):
             )
 
             # Award spendable MCoin and XP
-            profile_cog = self.bot.get_cog("Profile")
+            profile_cog = interaction.client.get_cog("Profile")
             if profile_cog:
                 xp_reward = final_points * 50
                 await profile_cog.add_xp_and_coins(
@@ -1813,7 +1813,7 @@ class TicketControlView(discord.ui.View):
         )
 
         # Award spendable MCoin and XP to requester
-        profile_cog = self.bot.get_cog("Profile")
+        profile_cog = interaction.client.get_cog("Profile")
         if profile_cog:
             requester_xp_reward = requester_points * 50
             await profile_cog.add_xp_and_coins(
