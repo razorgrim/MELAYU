@@ -75,9 +75,33 @@ async def remove_requester_overwrite(guild, requester_id, ticket_id):
 
 
 async def close_ticket_channel(channel, reason):
-    if isinstance(channel, discord.Thread):
+    guild = getattr(channel, "guild", None)
+    if guild:
+        # Resolve PartialMessageable or incomplete channel objects
+        resolved_channel = guild.get_thread(channel.id) or guild.get_channel(channel.id)
+        if not resolved_channel:
+            try:
+                resolved_channel = await guild.fetch_channel(channel.id)
+            except Exception:
+                pass
+        if resolved_channel:
+            channel = resolved_channel
+
+    is_thread = isinstance(channel, discord.Thread) or hasattr(channel, "archived") or getattr(channel, "type", None) in (
+        discord.ChannelType.public_thread,
+        discord.ChannelType.private_thread,
+        discord.ChannelType.news_thread
+    )
+
+    if is_thread:
         try:
             await channel.edit(locked=True, archived=True, reason=reason)
+        except discord.Forbidden:
+            # Fallback: if locking is forbidden, try just archiving
+            try:
+                await channel.edit(archived=True, reason=reason)
+            except Exception as e:
+                print(f"Failed to archive thread after lock forbidden: {e}")
         except Exception as e:
             print(f"Failed to lock and archive thread: {e}")
     else:
@@ -85,6 +109,7 @@ async def close_ticket_channel(channel, reason):
             await channel.delete(reason=reason)
         except Exception as e:
             print(f"Failed to delete channel: {e}")
+
 
 INACTIVE_TIMEOUT_SECONDS = 7200  # 2 hours
 WARNING_BEFORE_CLOSE = 1800  # 30 minutes before (in seconds)
@@ -277,7 +302,12 @@ def update_daily_stats(status, activity, points=0, requester_id=None, helper_ids
     elif status == "cancelled":
         stats[today]["cancelled_tickets"] += 1
 
-    stats[today]["activities"][activity] = stats[today]["activities"].get(activity, 0) + 1
+    if activity:
+        individual_activities = [act.strip() for act in activity.split(" + ")]
+        for act in individual_activities:
+            if act:
+                stats[today]["activities"][act] = stats[today]["activities"].get(act, 0) + 1
+
 
     if requester_id:
         requester_id = str(requester_id)
