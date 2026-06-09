@@ -243,6 +243,36 @@ class Profile(commands.Cog):
         except Exception:
             achievements = []
 
+        display_title = active_title
+        if active_title != "None":
+            # Check achievement emojis mapping to prepend them
+            ACHIEVEMENT_EMOJIS = {
+                "Newcomer": "<:10tixhelp:1513506260467712008>",
+                "Apprentice": "<:20tixhelp:1513506264674603121>",
+                "Journeyman": "<:30tixhelp:1513506267606417418>",
+                "Adventurer": "<:40tixhelp:1513506270265741372>",
+                "Huntsman": "<:50tixhelp:1513506273461665883>",
+                "Mercenary": "<:60tixhelp:1513506275873525940>",
+                "Slayer": "<:70tixhelp:1513506279166054474>",
+                "Lord": "<:80tixhelp:1513506282202468453>",
+                "Conquerer": "<:90tixhelp:1513506285906165802>",
+                "That One Guy": "<:100tixhelp:1513506288779268106>",
+                "Wumpus Friend": "<:achievementicon:1513431554536509570>"
+            }
+            matched_emoji = None
+            for key, val in ACHIEVEMENT_EMOJIS.items():
+                if key.lower() == active_title.lower():
+                    matched_emoji = val
+                    break
+            
+            if matched_emoji:
+                display_title = f"{matched_emoji} {active_title}"
+            else:
+                # Fallback check if it is in achievements list
+                is_ach = any(a.lower() == active_title.lower() for a in achievements)
+                if is_ach:
+                    display_title = f"<:achievementicon:1513431554536509570> {active_title}"
+
         completed_tickets = profile["completed_tickets"] if (profile and "completed_tickets" in profile) else 0
 
         # Try to parse embed color
@@ -267,7 +297,7 @@ class Profile(commands.Cog):
             f"📈 **Progress:** {xp_bar}"
         )
 
-        embed.add_field(name="🏷️ Active Title", value=f"{active_title}", inline=True)
+        embed.add_field(name="🏷️ Active Title", value=f"{display_title}", inline=True)
         embed.add_field(name="<:MCoins:1513429245009854546> Melayu Coins (MCoin)", value=f"<:MCoins:1513429245009854546> **{coins:,}**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
