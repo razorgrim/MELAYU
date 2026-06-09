@@ -1905,10 +1905,10 @@ class LeaderboardView(discord.ui.View):
         for index, row in enumerate(page_data, start=start + 1):
             member = guild.get_member(row["user_id"])
             name = member.mention if member else f"<@{row['user_id']}>"
-            description += f"**{index}.** {name} — **{row['points']} points**\n"
+            description += f"**{index}.** {name} — <:helperpointsicon:1513431870182785135> **{row['points']} points**\n"
 
         embed = discord.Embed(
-            title="🏆 Points Leaderboard",
+            title="🏆 <:helperpointsicon:1513431870182785135> Points Leaderboard",
             description=description or "No points recorded.",
             color=discord.Color.gold()
         )
@@ -2152,7 +2152,7 @@ class Tickets(commands.Cog):
                     for index, (user_id, points) in enumerate(top_helpers, start=1):
                         member = guild.get_member(int(user_id))
                         name = member.mention if member else f"<@{user_id}>"
-                        helper_text += f"**{index}.** {name} — **{points} points**\n"
+                        helper_text += f"**{index}.** {name} — <:helperpointsicon:1513431870182785135> **{points} points**\n"
 
                 # Most requested activities today (resolve combined ones)
                 raw_activities = today_data.get("activities", {})
@@ -2175,14 +2175,14 @@ class Tickets(commands.Cog):
 
             # Create beautiful premium embed
             embed = discord.Embed(
-                title="🏆 Ticket Statistics Board",
+                title="🏆 <:Ticketcomoleteicon:1513433287304020058> Ticket Statistics Board",
                 description=(
                     f"Thank you to all our amazing helpers and members for their dedication! "
                     f"Together, we keep the server thriving. 🙌\n\n"
-                    f"✨ **All-Time Completed Tickets:** `{total_completed}`\n\n"
+                    f"✨ **All-Time Completed Tickets:** <:Ticketcomoleteicon:1513433287304020058> `{total_completed}`\n\n"
                     f"📅 **Today's Statistics ({today}):**\n"
                     f"• **Completed:** `{today_completed}` | **Cancelled:** `{today_cancelled}`\n"
-                    f"• **Points Distributed:** `{today_points}`\n"
+                    f"• **Points Distributed:** <:helperpointsicon:1513431870182785135> `{today_points}`\n"
                 ),
                 color=discord.Color.from_rgb(255, 215, 0)  # Gold
             )
@@ -2504,7 +2504,7 @@ class Tickets(commands.Cog):
         points = result["points"] if result else 0
 
         await interaction.response.send_message(
-            f"🏆 {interaction.user.mention}, you have **{points} point(s)**.",
+            f"<:helperpointsicon:1513431870182785135> {interaction.user.mention}, you have **{points} helper point(s)**.",
             ephemeral=True
         )
 
@@ -2587,7 +2587,7 @@ class Tickets(commands.Cog):
             member = interaction.guild.get_member(int(user_id))
             name = member.mention if member else f"User ID {user_id}"
 
-            helper_text += f"**{index}.** {name} — **{points} points**\n"
+            helper_text += f"**{index}.** {name} — <:helperpointsicon:1513431870182785135> **{points} points**\n"
         if not helper_text:
             helper_text = "No helpers recorded today."
 
@@ -2612,9 +2612,9 @@ class Tickets(commands.Cog):
         embed = discord.Embed(
             title=f"📊 Daily Ticket Stats — {today}",
             description=(
-                f"**Completed Tickets:** {data['completed_tickets']}\n"
-                f"**Cancelled Tickets:** {data['cancelled_tickets']}\n"
-                f"**Total Points Given:** {data['total_points_given']}\n\n"
+                f"<:Ticketcomoleteicon:1513433287304020058> **Completed Tickets:** {data['completed_tickets']}\n"
+                f"❌ **Cancelled Tickets:** {data['cancelled_tickets']}\n"
+                f"<:helperpointsicon:1513431870182785135> **Total Points Given:** {data['total_points_given']}\n\n"
                 f"**Top Helpers Today:**\n{helper_text}\n"
                 f"**Most Requested Activities:**\n{activity_text}"
             ),

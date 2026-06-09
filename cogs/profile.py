@@ -156,7 +156,7 @@ class Profile(commands.Cog):
             member = guild.get_member(user_id)
             if member and target_channel:
                 embed = discord.Embed(
-                    title="🎉 LEVEL UP!",
+                    title="🎉 <:levelicon:1513387074164887713> LEVEL UP!",
                     description=f"{member.mention} has advanced to **Level {new_level}**! 🚀",
                     color=discord.Color.green()
                 )
@@ -181,9 +181,23 @@ class Profile(commands.Cog):
 
             member = guild.get_member(user_id)
             if member and target_channel:
+                ACHIEVEMENT_EMOJIS = {
+                    "Newcomer": "<:10tixhelp:1513506260467712008>",
+                    "Apprentice": "<:20tixhelp:1513506264674603121>",
+                    "Journeyman": "<:30tixhelp:1513506267606417418>",
+                    "Adventurer": "<:40tixhelp:1513506270265741372>",
+                    "Huntsman": "<:50tixhelp:1513506273461665883>",
+                    "Mercenary": "<:60tixhelp:1513506275873525940>",
+                    "Slayer": "<:70tixhelp:1513506279166054474>",
+                    "Lord": "<:80tixhelp:1513506282202468453>",
+                    "Conquerer": "<:90tixhelp:1513506285906165802>",
+                    "That One Guy": "<:100tixhelp:1513506288779268106>",
+                    "Wumpus Friend": "<:achievementicon:1513431554536509570>"
+                }
                 for name in unlocked_achievements:
+                    emoji = ACHIEVEMENT_EMOJIS.get(name, "<:achievementicon:1513431554536509570>")
                     embed = discord.Embed(
-                        title="🏆 Achievement Unlocked!",
+                        title=f"{emoji} Achievement Unlocked!",
                         description=f"Congratulations {member.mention}! You have earned the achievement title: **`{name}`**! 🎉",
                         color=discord.Color.gold()
                     )
@@ -242,27 +256,27 @@ class Profile(commands.Cog):
 
         title_name = ign if ign != "Not Verified" else target.display_name
         embed = discord.Embed(
-            title=f"👤 Player Profile - {title_name}",
+            title=f"<:Playerprofileicon:1513424880274767983> Player Profile - {title_name}",
             color=embed_color
         )
         embed.set_thumbnail(url=target.display_avatar.url)
 
         embed.description = (
-            f"🏅 **Level:** {level}\n"
-            f"✨ **XP:** {xp:,} / {needed:,}\n"
+            f"<:levelicon:1513387074164887713> **Level:** {level}\n"
+            f"<:expicon:1513387013871763546> **XP:** {xp:,} / {needed:,}\n"
             f"📈 **Progress:** {xp_bar}"
         )
 
         embed.add_field(name="🏷️ Active Title", value=f"{active_title}", inline=True)
-        embed.add_field(name="🪙 Melayu Coins (MCoin)", value=f"🪙 **{coins:,}**", inline=True)
+        embed.add_field(name="<:MCoins:1513429245009854546> Melayu Coins (MCoin)", value=f"<:MCoins:1513429245009854546> **{coins:,}**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
-        embed.add_field(name="🏆 Helper Points", value=f"⭐ **{points:,}**", inline=True)
+        embed.add_field(name="<:helperpointsicon:1513431870182785135> Helper Points", value=f"<:helperpointsicon:1513431870182785135> **{points:,}**", inline=True)
         embed.add_field(name="🔥 Daily Streak", value=f"📅 **{daily_streak} day(s)**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
-        embed.add_field(name="🏆 Achievements", value=f"🏅 **{len(achievements)}** unlocked", inline=True)
-        embed.add_field(name="🎫 Tickets Completed", value=f"🎫 **{completed_tickets:,}**", inline=True)
+        embed.add_field(name="<:achievementicon:1513431554536509570> Achievements", value=f"<:achievementicon:1513431554536509570> **{len(achievements)}** unlocked", inline=True)
+        embed.add_field(name="<:Ticketcomoleteicon:1513433287304020058> Tickets Completed", value=f"<:Ticketcomoleteicon:1513433287304020058> **{completed_tickets:,}**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
         await interaction.followup.send(embed=embed)
@@ -320,8 +334,8 @@ class Profile(commands.Cog):
 
         await interaction.followup.send(
             f"✅ **Daily Claimed!**\n"
-            f"🪙 Reward: **+{coins_reward} Melayu Coins (MCoin)**\n"
-            f"✨ XP gained: **+{xp_reward} XP**\n"
+            f"<:MCoins:1513429245009854546> Reward: **+{coins_reward} Melayu Coins (MCoin)**\n"
+            f"<:expicon:1513387013871763546> XP gained: **+{xp_reward} XP**\n"
             f"📅 Current Streak: **{streak} day(s)**"
         )
 
@@ -350,12 +364,12 @@ class Profile(commands.Cog):
             elif item["type"] == "color":
                 target_str = f"Color: `{item['target_text']}`"
             
-            shop_lines.append(f"**{item['id']}. {item['name']}** — 💰 **{item['price']} MCoin** ({target_str})")
+            shop_lines.append(f"**{item['id']}. {item['name']}** — <:MCoins:1513429245009854546> **{item['price']} MCoin** ({target_str})")
 
         embed = discord.Embed(
             title="🛒 MELAYU Shop",
             description=(
-                "Use `/buy <item_id>` to purchase items using **Melayu Coins (MCoin)**!\n\n"
+                "Use `/buy <item_id>` to purchase items using <:MCoins:1513429245009854546> **Melayu Coins (MCoin)**!\n\n"
                 + "\n".join(shop_lines)
             ),
             color=discord.Color.gold()
@@ -424,15 +438,15 @@ class Profile(commands.Cog):
             if role:
                 try:
                     await interaction.user.add_roles(role)
-                    await interaction.followup.send(f"✅ Successfully purchased **{item['name']}** for **{item['price']} MCoin**! The role {role.mention} has been added to you.")
+                    await interaction.followup.send(f"✅ Successfully purchased **{item['name']}** for <:MCoins:1513429245009854546> **{item['price']} MCoin**! The role {role.mention} has been added to you.")
                 except Exception as e:
                     await interaction.followup.send(f"✅ Purchased **{item['name']}** but failed to grant role (lack of permissions). Please ask an Admin to grant it manually.")
             else:
                 await interaction.followup.send(f"✅ Purchased **{item['name']}** but the associated role was not found in the guild. Please contact an admin.")
         elif item["type"] == "title":
-            await interaction.followup.send(f"✅ Successfully purchased Title **{item['name']}** for **{item['price']} MCoin**! Equip it with `/equip`.")
+            await interaction.followup.send(f"✅ Successfully purchased Title **{item['name']}** for <:MCoins:1513429245009854546> **{item['price']} MCoin**! Equip it with `/equip`.")
         elif item["type"] == "color":
-            await interaction.followup.send(f"✅ Successfully purchased Color **{item['name']}** (`{item['target_text']}`) for **{item['price']} MCoin**! Equip it with `/equip`.")
+            await interaction.followup.send(f"✅ Successfully purchased Color **{item['name']}** (`{item['target_text']}`) for <:MCoins:1513429245009854546> **{item['price']} MCoin**! Equip it with `/equip`.")
 
     @app_commands.command(name="inventory", description="View your purchased shop items")
     async def inventory(self, interaction: discord.Interaction):
@@ -462,7 +476,7 @@ class Profile(commands.Cog):
             return
 
         embed = discord.Embed(
-            title="📦 Your Inventory & Achievements",
+            title="<:Stashicon:1513426124036640950> Your Inventory & Achievements",
             description="Use `/equip <item_name>` to set your active title or profile color!",
             color=discord.Color.blue()
         )
@@ -484,7 +498,29 @@ class Profile(commands.Cog):
                 pass
 
         if achievements:
-            embed.add_field(name="🏆 Earned Achievements (Equippable)", value="\n".join([f"• {a}" for a in achievements]), inline=False)
+            ACHIEVEMENT_EMOJIS = {
+                "Newcomer": "<:10tixhelp:1513506260467712008>",
+                "Apprentice": "<:20tixhelp:1513506264674603121>",
+                "Journeyman": "<:30tixhelp:1513506270265741372>", # Wait, user's 30tix is 30tixhelp:1513506267606417418? Wait, let's make sure we put the correct one: <:30tixhelp:1513506267606417418>
+                "Adventurer": "<:40tixhelp:1513506270265741372>",
+                "Huntsman": "<:50tixhelp:1513506273461665883>",
+                "Mercenary": "<:60tixhelp:1513506275873525940>",
+                "Slayer": "<:70tixhelp:1513506279166054474>",
+                "Lord": "<:80tixhelp:1513506282202468453>",
+                "Conquerer": "<:90tixhelp:1513506285906165802>",
+                "That One Guy": "<:100tixhelp:1513506288779268106>",
+                "Wumpus Friend": "<:achievementicon:1513431554536509570>"
+            }
+            # Wait, let's fix Journeyman emoji id to match the user's provided list:
+            # 30tixhelp: 1513506267606417418
+            # In the first replacement chunk we used <:30tixhelp:1513506267606417418>. Here too, let's make sure we use it!
+            # Let's fix that.
+            ACHIEVEMENT_EMOJIS["Journeyman"] = "<:30tixhelp:1513506267606417418>"
+            ach_lines = []
+            for a in achievements:
+                emoji = ACHIEVEMENT_EMOJIS.get(a, "<:achievementicon:1513431554536509570>")
+                ach_lines.append(f"{emoji} {a}")
+            embed.add_field(name="<:achievementicon:1513431554536509570> Earned Achievements (Equippable)", value="\n".join([f"• {a}" for a in ach_lines]), inline=False)
         if titles:
             embed.add_field(name="🏷️ Purchased Titles", value="\n".join([f"• {t}" for t in titles]), inline=False)
         if colors:
