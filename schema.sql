@@ -262,4 +262,16 @@ CREATE TABLE IF NOT EXISTS `level_config` (
   PRIMARY KEY (`guild_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `daily_stats` (
+  `guild_id` bigint(20) NOT NULL,
+  `stat_date` date NOT NULL,
+  `completed_tickets` int(11) NOT NULL DEFAULT 0,
+  `cancelled_tickets` int(11) NOT NULL DEFAULT 0,
+  `total_points_given` int(11) NOT NULL DEFAULT 0,
+  `helpers` text DEFAULT NULL,
+  `requesters` text DEFAULT NULL,
+  `activities` text DEFAULT NULL,
+  PRIMARY KEY (`guild_id`, `stat_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;

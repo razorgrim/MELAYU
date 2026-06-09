@@ -283,45 +283,87 @@ def today_key():
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def update_daily_stats(status, activity, points=0, requester_id=None, helper_ids=None):
-    stats = load_json(DAILY_STATS_FILE)
+async def update_daily_stats(guild_id, status, activity, points=0, requester_id=None, helper_ids=None):
     today = today_key()
+    
+    # 1. Fetch current daily stats for this guild and date
+    row = await fetchone(
+        "SELECT * FROM daily_stats WHERE guild_id = %s AND stat_date = %s",
+        (guild_id, today)
+    )
+    
+    if not row:
+        completed_tickets = 0
+        cancelled_tickets = 0
+        total_points_given = 0
+        helpers = {}
+        requesters = {}
+        activities = {}
+    else:
+        completed_tickets = row["completed_tickets"]
+        cancelled_tickets = row["cancelled_tickets"]
+        total_points_given = row["total_points_given"]
+        try:
+            helpers = json.loads(row["helpers"]) if row["helpers"] else {}
+        except Exception:
+            helpers = {}
+        try:
+            requesters = json.loads(row["requesters"]) if row["requesters"] else {}
+        except Exception:
+            requesters = {}
+        try:
+            activities = json.loads(row["activities"]) if row["activities"] else {}
+        except Exception:
+            activities = {}
 
-    if today not in stats:
-        stats[today] = {
-            "completed_tickets": 0,
-            "cancelled_tickets": 0,
-            "total_points_given": 0,
-            "helpers": {},
-            "requesters": {},
-            "activities": {}
-        }
-
+    # 2. Update numbers based on status
     if status == "completed":
         num_activities = len([act.strip() for act in activity.split(" + ") if act.strip()]) if activity else 1
-        stats[today]["completed_tickets"] += num_activities
+        completed_tickets += num_activities
     elif status == "cancelled":
-        stats[today]["cancelled_tickets"] += 1
+        cancelled_tickets += 1
 
     if activity:
         individual_activities = [act.strip() for act in activity.split(" + ")]
         for act in individual_activities:
             if act:
-                stats[today]["activities"][act] = stats[today]["activities"].get(act, 0) + 1
-
+                activities[act] = activities.get(act, 0) + 1
 
     if requester_id:
-        requester_id = str(requester_id)
-        stats[today]["requesters"][requester_id] = stats[today]["requesters"].get(requester_id, 0) + points
-        stats[today]["total_points_given"] += points
+        req_id_str = str(requester_id)
+        requesters[req_id_str] = requesters.get(req_id_str, 0) + points
+        total_points_given += points
 
     if helper_ids:
         for helper_id in helper_ids:
-            helper_id = str(helper_id)
-            stats[today]["helpers"][helper_id] = stats[today]["helpers"].get(helper_id, 0) + points
-            stats[today]["total_points_given"] += points
+            h_id_str = str(helper_id)
+            helpers[h_id_str] = helpers.get(h_id_str, 0) + points
+            total_points_given += points
 
-    save_json(DAILY_STATS_FILE, stats)
+    # 3. Save back to database
+    await execute(
+        """
+        INSERT INTO daily_stats (guild_id, stat_date, completed_tickets, cancelled_tickets, total_points_given, helpers, requesters, activities)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            completed_tickets = VALUES(completed_tickets),
+            cancelled_tickets = VALUES(cancelled_tickets),
+            total_points_given = VALUES(total_points_given),
+            helpers = VALUES(helpers),
+            requesters = VALUES(requesters),
+            activities = VALUES(activities)
+        """,
+        (
+            guild_id,
+            today,
+            completed_tickets,
+            cancelled_tickets,
+            total_points_given,
+            json.dumps(helpers),
+            json.dumps(requesters),
+            json.dumps(activities)
+        )
+    )
 
 async def send_ticket_log(guild, title, description, color=discord.Color.blue()):
     config = await get_server_config(guild.id)
@@ -1670,7 +1712,8 @@ class TicketControlView(discord.ui.View):
             except Exception as e:
                 print(f"Failed to remove requester overwrite on cancel: {e}")
 
-            update_daily_stats(
+            await update_daily_stats(
+                guild_id=ticket_data["guild_id"],
                 status="cancelled",
                 activity=ticket_data["activity"],
                 points=0,
@@ -1842,7 +1885,8 @@ class TicketControlView(discord.ui.View):
         except Exception as e:
             print(f"Failed to remove requester overwrite on completion: {e}")
 
-        update_daily_stats(
+        await update_daily_stats(
+            guild_id=ticket_data["guild_id"],
             status="completed",
             activity=ticket_data["activity"],
             points=points,
@@ -2053,34 +2097,63 @@ class Tickets(commands.Cog):
         self.bot.add_view(TicketPanelView())
         self.bot.add_view(OfficerControlView())
         self.bot.add_view(LeaderboardView())
-        self.migrate_stats_file()
         self.auto_close_inactive_tickets.start()
 
-    def migrate_stats_file(self):
+    async def migrate_stats_json_to_db(self):
+        import os
+        if not os.path.exists(DAILY_STATS_FILE):
+            return
+
+        print("[TICKETS] Found legacy daily_stats.json. Starting migration to database...")
         stats = load_json(DAILY_STATS_FILE)
-        modified = False
-        if stats:
-            for date, day_data in stats.items():
-                activities = day_data.get("activities", {})
-                new_activities = {}
-                day_modified = False
-                extra_completed = 0
-                for activity_name, count in list(activities.items()):
-                    if " + " in activity_name:
-                        parts = [p.strip() for p in activity_name.split(" + ") if p.strip()]
-                        for part in parts:
-                            new_activities[part] = new_activities.get(part, 0) + count
-                        extra_completed += (len(parts) - 1) * count
-                        day_modified = True
-                        modified = True
-                    else:
-                        new_activities[activity_name] = new_activities.get(activity_name, 0) + count
-                if day_modified:
-                    day_data["activities"] = new_activities
-                    day_data["completed_tickets"] = day_data.get("completed_tickets", 0) + extra_completed
-            if modified:
-                save_json(DAILY_STATS_FILE, stats)
-                print("[STATS MIGRATION] Successfully cleaned and split historical combined activities in daily_stats.json")
+        if not stats:
+            return
+
+        guilds = self.bot.guilds
+        if not guilds:
+            print("[TICKETS] No active guilds found yet. Postponing migration.")
+            return
+
+        for guild in guilds:
+            for date_str, data in stats.items():
+                row = await fetchone(
+                    "SELECT COUNT(*) as count FROM daily_stats WHERE guild_id = %s AND stat_date = %s",
+                    (guild.id, date_str)
+                )
+                if row and row["count"] > 0:
+                    continue
+
+                raw_activities = data.get("activities", {})
+                separated_activities = {}
+                for activity, count in raw_activities.items():
+                    for act in activity.split(" + "):
+                        act = act.strip()
+                        if act:
+                            separated_activities[act] = separated_activities.get(act, 0) + count
+
+                await execute(
+                    """
+                    INSERT INTO daily_stats (guild_id, stat_date, completed_tickets, cancelled_tickets, total_points_given, helpers, requesters, activities)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        guild.id,
+                        date_str,
+                        data.get("completed_tickets", 0),
+                        data.get("cancelled_tickets", 0),
+                        data.get("total_points_given", 0),
+                        json.dumps(data.get("helpers", {})),
+                        json.dumps(data.get("requesters", {})),
+                        json.dumps(separated_activities)
+                    )
+                )
+        
+        try:
+            backup_path = DAILY_STATS_FILE + ".migrated"
+            os.rename(DAILY_STATS_FILE, backup_path)
+            print(f"[TICKETS] Legacy daily_stats.json successfully migrated to database and renamed to {backup_path}")
+        except Exception as e:
+            print(f"[TICKETS] Failed to rename legacy daily_stats.json: {e}")
 
 
 
@@ -2120,11 +2193,11 @@ class Tickets(commands.Cog):
                     pass
 
             # Calculate total completed tickets
-            stats = load_json(DAILY_STATS_FILE)
-            total_completed = 0
-            if stats:
-                for date, data in stats.items():
-                    total_completed += data.get("completed_tickets", 0)
+            total_completed_row = await fetchone(
+                "SELECT SUM(completed_tickets) as total FROM daily_stats WHERE guild_id = %s",
+                (guild.id,)
+            )
+            total_completed = (total_completed_row["total"] if total_completed_row and total_completed_row["total"] is not None else 0)
 
             # Extract today's daily stats
             today = today_key()
@@ -2134,15 +2207,24 @@ class Tickets(commands.Cog):
             helper_text = "No helpers recorded today."
             activity_text = ""
 
-            if stats and today in stats:
-                today_data = stats[today]
-                today_completed = today_data.get("completed_tickets", 0)
-                today_cancelled = today_data.get("cancelled_tickets", 0)
-                today_points = today_data.get("total_points_given", 0)
+            today_stats = await fetchone(
+                "SELECT * FROM daily_stats WHERE guild_id = %s AND stat_date = %s",
+                (guild.id, today)
+            )
+
+            if today_stats:
+                today_completed = today_stats["completed_tickets"]
+                today_cancelled = today_stats["cancelled_tickets"]
+                today_points = today_stats["total_points_given"]
 
                 # Top helpers today
+                try:
+                    helpers_map = json.loads(today_stats["helpers"]) if today_stats["helpers"] else {}
+                except Exception:
+                    helpers_map = {}
+                
                 top_helpers = sorted(
-                    today_data.get("helpers", {}).items(),
+                    helpers_map.items(),
                     key=lambda item: item[1],
                     reverse=True
                 )[:5]
@@ -2155,7 +2237,11 @@ class Tickets(commands.Cog):
                         helper_text += f"**{index}.** {name} — <:helperpointsicon:1513431870182785135> **{points} points**\n"
 
                 # Most requested activities today (resolve combined ones)
-                raw_activities = today_data.get("activities", {})
+                try:
+                    raw_activities = json.loads(today_stats["activities"]) if today_stats["activities"] else {}
+                except Exception:
+                    raw_activities = {}
+                
                 separated_activities = {}
                 for activity, count in raw_activities.items():
                     for act in activity.split(" + "):
@@ -2265,6 +2351,7 @@ class Tickets(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         print("[TICKETS] Cog is ready, verifying completed tickets embeds...")
+        await self.migrate_stats_json_to_db()
         for guild in self.bot.guilds:
             try:
                 await self.update_completed_tickets_embed(guild)
@@ -2358,7 +2445,8 @@ class Tickets(commands.Cog):
                     except Exception as e:
                         print(f"Failed to remove requester overwrite on auto-close: {e}")
 
-                update_daily_stats(
+                await update_daily_stats(
+                    guild_id=data["guild_id"],
                     status="cancelled",
                     activity=data["activity"],
                     points=0,
