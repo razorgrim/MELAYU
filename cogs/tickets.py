@@ -2101,6 +2101,22 @@ class Tickets(commands.Cog):
 
     async def migrate_stats_json_to_db(self):
         import os
+        # Ensure daily_stats table exists in database
+        await execute(
+            """
+            CREATE TABLE IF NOT EXISTS `daily_stats` (
+              `guild_id` bigint(20) NOT NULL,
+              `stat_date` date NOT NULL,
+              `completed_tickets` int(11) NOT NULL DEFAULT 0,
+              `cancelled_tickets` int(11) NOT NULL DEFAULT 0,
+              `total_points_given` int(11) NOT NULL DEFAULT 0,
+              `helpers` text DEFAULT NULL,
+              `requesters` text DEFAULT NULL,
+              `activities` text DEFAULT NULL,
+              PRIMARY KEY (`guild_id`, `stat_date`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            """
+        )
         if not os.path.exists(DAILY_STATS_FILE):
             return
 
