@@ -1693,6 +1693,8 @@ class TicketControlView(discord.ui.View):
 
         # Cancelled ticket
         if not ticket_data["completed"]:
+            # Defer response first since cancelled ticket logic takes time
+            await interaction.response.defer()
 
             await send_ticket_log(
                 interaction.guild,
@@ -1721,7 +1723,7 @@ class TicketControlView(discord.ui.View):
                 helper_ids=[]
             )
 
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "🔒 Ticket cancelled/closed.\n"
                 "No points were given."
             )
@@ -1758,6 +1760,9 @@ class TicketControlView(discord.ui.View):
                 ephemeral=True
             )
             return
+
+        # All checks passed, defer the response before doing heavy actions
+        await interaction.response.defer()
 
         points = ticket_data["points"]
 
@@ -1912,7 +1917,7 @@ class TicketControlView(discord.ui.View):
             discord.Color.green()
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Ticket closed.\n\n"
             f"Requester: {requester_mention}\n"
             f"Helpers: {', '.join(helper_mentions)}"
