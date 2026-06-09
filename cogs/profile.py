@@ -302,7 +302,7 @@ class Profile(commands.Cog):
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
         embed.add_field(name="<:HelperHeadingIcon:1513884569160388648> Helper Points", value=f"<:helperpointsicon:1513431870182785135> **{points:,}**", inline=True)
-        embed.add_field(name="<:StreakHeadingIcon:1513884563565314198> Daily Streak", value=f"📅 **{daily_streak} day(s)**", inline=True)
+        embed.add_field(name="<:StreakHeadingIcon:1513884563565314198> Daily Streak", value=f":fire:  **{daily_streak} day(s)**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
         embed.add_field(name="<:achievement:1513880829405827193> Achievements", value=f"<:achievementicon:1513431554536509570> **{len(achievements)}** unlocked", inline=True)
