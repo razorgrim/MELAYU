@@ -298,16 +298,16 @@ class Profile(commands.Cog):
         )
 
         embed.add_field(name="<:activetitleicon:1513880838066929664> Active Title", value=f"{display_title}", inline=True)
-        embed.add_field(name="<:Stashicon:1513426124036640950> Stash (Mcoins)", value=f"<:MCoins:1513429245009854546> **{coins:,}**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
+        embed.add_field(name="<:Stashicon:1513426124036640950> Stash (Mcoins)", value=f"<:MCoins:1513429245009854546> **{coins:,}**", inline=True)
 
         embed.add_field(name="<:HelperHeadingIcon:1513884569160388648> Helper Points", value=f"<:helperpointsicon:1513431870182785135> **{points:,}**", inline=True)
-        embed.add_field(name="<:StreakHeadingIcon:1513884563565314198> Daily Streak", value=f"<:streakdaysicon:1513880822019784724>  **{daily_streak} day(s)**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
+        embed.add_field(name="<:StreakHeadingIcon:1513884563565314198> Daily Streak", value=f"<:streakdaysicon:1513880822019784724>  **{daily_streak} day(s)**", inline=True)
 
         embed.add_field(name="<:achievement:1513880829405827193> Achievements", value=f"<:achievementicon:1513431554536509570> **{len(achievements)}** unlocked", inline=True)
-        embed.add_field(name="<:Ticketcomoleteicon:1513433287304020058> Tickets Completed", value=f"<:TicketCompletedIcon:1513884560474247178> **{completed_tickets:,}**", inline=True)
         embed.add_field(name="\u200b", value="\u200b", inline=True)
+        embed.add_field(name="<:Ticketcomoleteicon:1513433287304020058> Tickets Completed", value=f"<:TicketCompletedIcon:1513884560474247178> **{completed_tickets:,}**", inline=True)
 
         await interaction.followup.send(embed=embed)
 
