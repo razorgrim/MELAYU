@@ -2233,7 +2233,7 @@ class Tickets(commands.Cog):
 
                 if is_active_tickets_channel:
                     # Ignore the bot's own stats embed to avoid infinite loops
-                    if message.author == self.bot.user and message.embeds and message.embeds[0].title in ["🏆 Total Tickets Completed", "🏆 Ticket Statistics Board"]:
+                    if message.author == self.bot.user and message.embeds and message.embeds[0].title and any(keyword in message.embeds[0].title for keyword in ["Total Tickets Completed", "Ticket Statistics Board"]):
                         return
                     
                     # Delete the old embed and send a new one
