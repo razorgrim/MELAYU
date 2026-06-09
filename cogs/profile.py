@@ -294,7 +294,7 @@ class Profile(commands.Cog):
         embed.description = (
             f"<:levelicon:1513387074164887713> **Level:** {level}\n"
             f"<:expicon:1513387013871763546> **XP:** {xp:,} / {needed:,}\n"
-            f"📈 **Progress:** {xp_bar}"
+            f"<:progressicon:1513880815304573060> **Progress:** {xp_bar}"
         )
 
         embed.add_field(name="<:activetitleicon:1513880838066929664> Active Title", value=f"{display_title}", inline=True)
