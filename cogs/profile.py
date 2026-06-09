@@ -13,18 +13,16 @@ from database import execute, fetchone, fetchall
 COOLDOWN_MINUTES = 1
 XP_PER_TICKET_MULTIPLIER = 50
 
-def xp_for_level(level):
-    if level <= 1:
-        return 0
-    return int(100 * ((level - 1) ** 1.5))
+def xp_needed_for_level(level):
+    return int(100 * (1.25 ** (level - 1)))
 
 def generate_xp_bar(xp, level, length=10):
-    next_level_start = xp_for_level(level + 1)
+    needed = xp_needed_for_level(level)
     
-    if next_level_start <= 0:
+    if needed <= 0:
         percent = 1.0
     else:
-        percent = max(0.0, min(1.0, xp / next_level_start))
+        percent = max(0.0, min(1.0, xp / needed))
         
     filled_length = int(round(length * percent))
     bar = '▰' * filled_length + '▱' * (length - filled_length)
@@ -62,7 +60,7 @@ class Profile(commands.Cog):
 
         # Get current profile
         profile = await fetchone(
-            "SELECT xp, level, coins, completed_tickets FROM user_profiles WHERE guild_id = %s AND user_id = %s",
+            "SELECT xp, level, coins, completed_tickets, achievements FROM user_profiles WHERE guild_id = %s AND user_id = %s",
             (guild_id, user_id)
         )
 
@@ -71,33 +69,75 @@ class Profile(commands.Cog):
             current_level = 1
             current_coins = 0
             current_tickets = 0
+            achievements_raw = "[]"
         else:
             current_xp = profile["xp"]
             current_level = profile["level"]
             current_coins = profile["coins"]
             current_tickets = profile.get("completed_tickets") or 0
+            achievements_raw = profile.get("achievements") or "[]"
+
+        try:
+            user_achievements = json.loads(achievements_raw)
+        except Exception:
+            user_achievements = []
 
         new_xp = current_xp + xp_to_add
         new_coins = current_coins + coins_to_add
         new_tickets = current_tickets + tickets_to_add
 
-        # Check level up
+        # Check level up (resets XP on level up, with 1.25x scaling needed for the next level)
         new_level = current_level
-        while new_xp >= xp_for_level(new_level + 1):
-            new_level += 1
+        while True:
+            needed = xp_needed_for_level(new_level)
+            if new_xp >= needed:
+                new_xp -= needed
+                new_level += 1
+            else:
+                break
+
+        unlocked_achievements = []
+
+        # 1. Level 2 Achievement: "Wumpus Friend"
+        if new_level >= 2:
+            level_ach_name = "Wumpus Friend"
+            if not any(a.lower() == level_ach_name.lower() for a in user_achievements):
+                user_achievements.append(level_ach_name)
+                unlocked_achievements.append(level_ach_name)
+
+        # 2. Ticket Achievements
+        if tickets_to_add > 0:
+            TICKET_ACHIEVEMENTS = [
+                (10, "Newcomer"),
+                (20, "Apprentice"),
+                (30, "Journeyman"),
+                (40, "Adventurer"),
+                (50, "Huntsman"),
+                (60, "Mercenary"),
+                (70, "Slayer"),
+                (80, "Lord"),
+                (90, "Conquerer"),
+                (100, "That One Guy")
+            ]
+            for threshold, name in TICKET_ACHIEVEMENTS:
+                if new_tickets >= threshold:
+                    if not any(a.lower() == name.lower() for a in user_achievements):
+                        user_achievements.append(name)
+                        unlocked_achievements.append(name)
 
         # Update DB
         await execute(
             """
-            INSERT INTO user_profiles (guild_id, user_id, xp, level, coins, completed_tickets)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO user_profiles (guild_id, user_id, xp, level, coins, completed_tickets, achievements)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 xp = VALUES(xp),
                 level = VALUES(level),
                 coins = VALUES(coins),
-                completed_tickets = VALUES(completed_tickets)
+                completed_tickets = VALUES(completed_tickets),
+                achievements = VALUES(achievements)
             """,
-            (guild_id, user_id, new_xp, new_level, new_coins, new_tickets)
+            (guild_id, user_id, new_xp, new_level, new_coins, new_tickets, json.dumps(user_achievements))
         )
 
         if new_level > current_level and channel:
@@ -125,6 +165,33 @@ class Profile(commands.Cog):
                     await target_channel.send(embed=embed)
                 except Exception as e:
                     print(f"[LEVEL UP ERROR] Failed to send level up message: {e}")
+
+        # Send achievement notifications
+        if unlocked_achievements and channel:
+            config = await fetchone(
+                "SELECT announcement_channel_id FROM level_config WHERE guild_id = %s",
+                (guild_id,)
+            )
+            target_channel = None
+            if config and config["announcement_channel_id"]:
+                target_channel = guild.get_channel(config["announcement_channel_id"])
+
+            if not target_channel:
+                target_channel = channel
+
+            member = guild.get_member(user_id)
+            if member and target_channel:
+                for name in unlocked_achievements:
+                    embed = discord.Embed(
+                        title="🏆 Achievement Unlocked!",
+                        description=f"Congratulations {member.mention}! You have earned the achievement title: **`{name}`**! 🎉",
+                        color=discord.Color.gold()
+                    )
+                    embed.set_thumbnail(url=member.display_avatar.url)
+                    try:
+                        await target_channel.send(embed=embed)
+                    except Exception as e:
+                        print(f"[ACHIEVEMENT ERROR] Failed to send achievement message: {e}")
 
     @app_commands.command(name="profile", description="Show player stats profile card")
     async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
@@ -171,7 +238,7 @@ class Profile(commands.Cog):
             embed_color = discord.Color.blue()
 
         xp_bar = generate_xp_bar(xp, level)
-        next_level_xp = xp_for_level(level + 1)
+        needed = xp_needed_for_level(level)
 
         title_name = ign if ign != "Not Verified" else target.display_name
         embed = discord.Embed(
@@ -182,7 +249,7 @@ class Profile(commands.Cog):
 
         embed.description = (
             f"🏅 **Level:** {level}\n"
-            f"✨ **XP:** {xp:,} / {next_level_xp:,}\n"
+            f"✨ **XP:** {xp:,} / {needed:,}\n"
             f"📈 **Progress:** {xp_bar}"
         )
 

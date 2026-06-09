@@ -15,13 +15,9 @@ python3-venv \
 mariadb-server \
 git
 
-echo "Creating Python virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
-
 echo "Installing Python requirements..."
-pip install --upgrade pip
-pip install -r requirements.txt
+pip3 install --upgrade pip --break-system-packages || pip3 install --upgrade pip
+pip3 install -r requirements.txt --break-system-packages || pip3 install -r requirements.txt
 
 echo "Installing Playwright chromium browser..."
 playwright install chromium
