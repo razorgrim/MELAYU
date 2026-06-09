@@ -156,7 +156,7 @@ class Profile(commands.Cog):
             member = guild.get_member(user_id)
             if member and target_channel:
                 embed = discord.Embed(
-                    title="🎉 <:levelicon:1513387074164887713> LEVEL UP!",
+                    title="🎉 <:levelicon:1513888070066241737> LEVEL UP!",
                     description=f"{member.mention} has advanced to **Level {new_level}**! 🚀",
                     color=discord.Color.green()
                 )
@@ -292,9 +292,9 @@ class Profile(commands.Cog):
         embed.set_thumbnail(url=target.display_avatar.url)
 
         embed.description = (
-            f"<:levelicon:1513387074164887713> **Level:** {level}\n"
-            f"<:expicon:1513387013871763546> **XP:** {xp:,} / {needed:,}\n"
-            f"<:progressicon:1513880815304573060> **Progress:** {xp_bar}"
+            f"<:levelicon:1513888070066241737> **Level:** {level}\n"
+            f"<:expicon:1513888072750596276> **XP:** {xp:,} / {needed:,}\n"
+            f"<:progressicon:1513888079142850721> **Progress:** {xp_bar}"
         )
 
         embed.add_field(name="<:activetitleicon:1513880838066929664> Active Title", value=f"{display_title}", inline=True)
@@ -365,7 +365,7 @@ class Profile(commands.Cog):
         await interaction.followup.send(
             f"✅ **Daily Claimed!**\n"
             f"<:MCoins:1513429245009854546> Reward: **+{coins_reward} Melayu Coins (MCoin)**\n"
-            f"<:expicon:1513387013871763546> XP gained: **+{xp_reward} XP**\n"
+            f"<:expicon:1513888072750596276> XP gained: **+{xp_reward} XP**\n"
             f"📅 Current Streak: **{streak} day(s)**"
         )
 
