@@ -16,6 +16,37 @@ XP_PER_TICKET_MULTIPLIER = 50
 def xp_needed_for_level(level):
     return int(100 * (1.25 ** (level - 1)))
 
+def get_level_title(level):
+    if level >= 50:
+        return "Dungeon Delver"
+    elif level >= 40:
+        return "Vanguard Ally"
+    elif level >= 30:
+        return "Quest Confidant"
+    elif level >= 20:
+        return "Campfire Companion"
+    elif level >= 10:
+        return "Wandering Nomad"
+    elif level >= 1:
+        return "Greenie Stranger"
+    return "None"
+
+def get_all_unlocked_level_titles(level):
+    titles = []
+    if level >= 1:
+        titles.append("Greenie Stranger")
+    if level >= 10:
+        titles.append("Wandering Nomad")
+    if level >= 20:
+        titles.append("Campfire Companion")
+    if level >= 30:
+        titles.append("Quest Confidant")
+    if level >= 40:
+        titles.append("Vanguard Ally")
+    if level >= 50:
+        titles.append("Dungeon Delver")
+    return titles
+
 def generate_xp_bar(xp, level, length=10):
     needed = xp_needed_for_level(level)
     
@@ -105,7 +136,21 @@ class Profile(commands.Cog):
                 user_achievements.append(level_ach_name)
                 unlocked_achievements.append(level_ach_name)
 
-        # 2. Ticket Achievements
+        # 2. Level titles milestones (10, 20, 30, 40, 50)
+        LEVEL_TITLES_MILESTONES = [
+            (10, "Wandering Nomad"),
+            (20, "Campfire Companion"),
+            (30, "Quest Confidant"),
+            (40, "Vanguard Ally"),
+            (50, "Dungeon Delver")
+        ]
+        for threshold, name in LEVEL_TITLES_MILESTONES:
+            if new_level >= threshold:
+                if not any(a.lower() == name.lower() for a in user_achievements):
+                    user_achievements.append(name)
+                    unlocked_achievements.append(name)
+
+        # 3. Ticket Achievements
         if tickets_to_add > 0:
             TICKET_ACHIEVEMENTS = [
                 (10, "Newcomer"),
@@ -192,7 +237,13 @@ class Profile(commands.Cog):
                     "Lord": "<:80tixhelp:1513506282202468453>",
                     "Conquerer": "<:90tixhelp:1513506285906165802>",
                     "That One Guy": "<:100tixhelp:1513506288779268106>",
-                    "Wumpus Friend": "<:achievementicon:1513431554536509570>"
+                    "Wumpus Friend": "<:achievementicon:1513431554536509570>",
+                    "Greenie Stranger": "<:levelicon:1513888070066241737>",
+                    "Wandering Nomad": "<:levelicon:1513888070066241737>",
+                    "Campfire Companion": "<:levelicon:1513888070066241737>",
+                    "Quest Confidant": "<:levelicon:1513888070066241737>",
+                    "Vanguard Ally": "<:levelicon:1513888070066241737>",
+                    "Dungeon Delver": "<:levelicon:1513888070066241737>"
                 }
                 for name in unlocked_achievements:
                     emoji = ACHIEVEMENT_EMOJIS.get(name, "<:achievementicon:1513431554536509570>")
@@ -231,6 +282,8 @@ class Profile(commands.Cog):
         level = profile["level"] if profile else 1
         coins = profile["coins"] if profile else 0
         active_title = profile["active_title"] if (profile and profile["active_title"]) else "None"
+        if active_title == "None":
+            active_title = get_level_title(level)
         embed_color_hex = profile["embed_color"] if (profile and profile["embed_color"]) else "#5865F2"
         daily_streak = profile["daily_streak"] if profile else 0
         points = points_data["points"] if points_data else 0
@@ -242,6 +295,12 @@ class Profile(commands.Cog):
             achievements = json.loads(achievements_raw)
         except Exception:
             achievements = []
+
+        # Dynamically append unlocked level titles to achievements list for the command context
+        unlocked_level_titles = get_all_unlocked_level_titles(level)
+        for lt in unlocked_level_titles:
+            if not any(a.lower() == lt.lower() for a in achievements):
+                achievements.append(lt)
 
         display_title = active_title
         if active_title != "None":
@@ -257,7 +316,13 @@ class Profile(commands.Cog):
                 "Lord": "<:80tixhelp:1513506282202468453>",
                 "Conquerer": "<:90tixhelp:1513506285906165802>",
                 "That One Guy": "<:100tixhelp:1513506288779268106>",
-                "Wumpus Friend": "<:achievementicon:1513431554536509570>"
+                "Wumpus Friend": "<:achievementicon:1513431554536509570>",
+                "Greenie Stranger": "<:levelicon:1513888070066241737>",
+                "Wandering Nomad": "<:levelicon:1513888070066241737>",
+                "Campfire Companion": "<:levelicon:1513888070066241737>",
+                "Quest Confidant": "<:levelicon:1513888070066241737>",
+                "Vanguard Ally": "<:levelicon:1513888070066241737>",
+                "Dungeon Delver": "<:levelicon:1513888070066241737>"
             }
             matched_emoji = None
             for key, val in ACHIEVEMENT_EMOJIS.items():
@@ -485,7 +550,7 @@ class Profile(commands.Cog):
         user_id = interaction.user.id
 
         profile = await fetchone(
-            "SELECT inventory, achievements FROM user_profiles WHERE guild_id = %s AND user_id = %s",
+            "SELECT inventory, achievements, level FROM user_profiles WHERE guild_id = %s AND user_id = %s",
             (guild_id, user_id)
         )
 
@@ -500,6 +565,13 @@ class Profile(commands.Cog):
             achievements = json.loads(achievements_raw)
         except Exception:
             achievements = []
+
+        # Dynamically append unlocked level titles to achievements list for the command context
+        level = profile["level"] if profile else 1
+        unlocked_level_titles = get_all_unlocked_level_titles(level)
+        for lt in unlocked_level_titles:
+            if not any(a.lower() == lt.lower() for a in achievements):
+                achievements.append(lt)
 
         if not inventory and not achievements:
             await interaction.followup.send("📦 Your inventory is empty! Visit the `/shop` to buy some items or earn achievements from Officers.")
@@ -531,7 +603,7 @@ class Profile(commands.Cog):
             ACHIEVEMENT_EMOJIS = {
                 "Newcomer": "<:10tixhelp:1513506260467712008>",
                 "Apprentice": "<:20tixhelp:1513506264674603121>",
-                "Journeyman": "<:30tixhelp:1513506270265741372>", # Wait, user's 30tix is 30tixhelp:1513506267606417418? Wait, let's make sure we put the correct one: <:30tixhelp:1513506267606417418>
+                "Journeyman": "<:30tixhelp:1513506267606417418>",
                 "Adventurer": "<:40tixhelp:1513506270265741372>",
                 "Huntsman": "<:50tixhelp:1513506273461665883>",
                 "Mercenary": "<:60tixhelp:1513506275873525940>",
@@ -539,13 +611,14 @@ class Profile(commands.Cog):
                 "Lord": "<:80tixhelp:1513506282202468453>",
                 "Conquerer": "<:90tixhelp:1513506285906165802>",
                 "That One Guy": "<:100tixhelp:1513506288779268106>",
-                "Wumpus Friend": "<:achievementicon:1513431554536509570>"
+                "Wumpus Friend": "<:achievementicon:1513431554536509570>",
+                "Greenie Stranger": "<:levelicon:1513888070066241737>",
+                "Wandering Nomad": "<:levelicon:1513888070066241737>",
+                "Campfire Companion": "<:levelicon:1513888070066241737>",
+                "Quest Confidant": "<:levelicon:1513888070066241737>",
+                "Vanguard Ally": "<:levelicon:1513888070066241737>",
+                "Dungeon Delver": "<:levelicon:1513888070066241737>"
             }
-            # Wait, let's fix Journeyman emoji id to match the user's provided list:
-            # 30tixhelp: 1513506267606417418
-            # In the first replacement chunk we used <:30tixhelp:1513506267606417418>. Here too, let's make sure we use it!
-            # Let's fix that.
-            ACHIEVEMENT_EMOJIS["Journeyman"] = "<:30tixhelp:1513506267606417418>"
             ach_lines = []
             for a in achievements:
                 emoji = ACHIEVEMENT_EMOJIS.get(a, "<:achievementicon:1513431554536509570>")
@@ -567,7 +640,7 @@ class Profile(commands.Cog):
         user_id = interaction.user.id
 
         profile = await fetchone(
-            "SELECT inventory, achievements FROM user_profiles WHERE guild_id = %s AND user_id = %s",
+            "SELECT inventory, achievements, level FROM user_profiles WHERE guild_id = %s AND user_id = %s",
             (guild_id, user_id)
         )
 
@@ -582,6 +655,13 @@ class Profile(commands.Cog):
             achievements = json.loads(achievements_raw)
         except Exception:
             achievements = []
+
+        # Dynamically append unlocked level titles to achievements list for the command context
+        level = profile["level"] if profile else 1
+        unlocked_level_titles = get_all_unlocked_level_titles(level)
+        for lt in unlocked_level_titles:
+            if not any(a.lower() == lt.lower() for a in achievements):
+                achievements.append(lt)
 
         # Check achievements first
         matched_achievement = None
